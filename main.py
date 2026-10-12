@@ -1,15 +1,16 @@
 """FlyRank Internship · Backend Track · Week 2 · Assignment A4
 Auth · Login & protect
-Stage 4: Auth middleware and logout endpoint
+Stage 5: Swagger UI documentation with bearer auth
 """
 
 import os
 import logging
 from typing import Optional
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, Header, Depends, Response
+from fastapi import FastAPI, Request, Depends, Response
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from supabase_client import supabase_client
 
@@ -24,9 +25,20 @@ PORT = int(os.getenv("PORT", 8000))
 
 app = FastAPI(
     title="FlyRank Auth API",
-    description="Secure Authentication & Protected Routes with Supabase Auth & FastAPI",
-    version="1.0.0"
+    description="Secure Authentication & Protected Routes with Supabase Auth, JWT Verification, and Swagger UI Bearer Lock.",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_tags=[
+        {"name": "System", "description": "Operational health and service discovery"},
+        {"name": "Authentication", "description": "User lifecycle: signup, login, and session revocation"},
+        {"name": "Public", "description": "Open public endpoints accessible without credentials"},
+        {"name": "Protected", "description": "Guarded endpoints requiring valid Bearer JWT tokens"}
+    ]
 )
+
+# Configure HTTPBearer scheme so Swagger UI shows the Authorize padlock
+security = HTTPBearer(auto_error=False)
 
 class CustomAuthException(Exception):
     def __init__(self, status_code: int, detail: str):
@@ -48,12 +60,12 @@ class AuthCredentials(BaseModel):
     email: Optional[str] = None
     password: Optional[str] = None
 
-# Reusable authentication dependency (FastAPI guard)
-def get_current_user(authorization: Optional[str] = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
+# Reusable authentication dependency integrated with HTTPBearer
+def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    if not credentials or not credentials.credentials:
         raise CustomAuthException(status_code=401, detail="Access token required")
 
-    token = authorization.split("Bearer ", 1)[1].strip()
+    token = credentials.credentials.strip()
     if not token:
         raise CustomAuthException(status_code=401, detail="Access token required")
 
@@ -72,11 +84,11 @@ def get_current_user(authorization: Optional[str] = Header(None)):
 async def startup_event():
     logger.info("Server running and connected to Supabase at %s on port %d", SUPABASE_URL, PORT)
 
-@app.get("/health", tags=["System"])
+@app.get("/health", tags=["System"], summary="Health Check")
 def health_check():
     return {"status": "ok", "service": "FlyRank Auth API"}
 
-@app.post("/auth/signup", status_code=201, tags=["Authentication"])
+@app.post("/auth/signup", status_code=201, tags=["Authentication"], summary="Register New User")
 def signup(creds: AuthCredentials):
     if not creds.email or not creds.email.strip() or not creds.password or not creds.password.strip():
         return JSONResponse(status_code=400, content={"error": "Email and password are required"})
@@ -96,7 +108,7 @@ def signup(creds: AuthCredentials):
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
 
-@app.post("/auth/login", status_code=200, tags=["Authentication"])
+@app.post("/auth/login", status_code=200, tags=["Authentication"], summary="Authenticate and Return JWT")
 def login(creds: AuthCredentials):
     if not creds.email or not creds.email.strip() or not creds.password or not creds.password.strip():
         return JSONResponse(status_code=400, content={"error": "Email and password are required"})
@@ -119,8 +131,7 @@ def login(creds: AuthCredentials):
     except Exception:
         return JSONResponse(status_code=401, content={"error": "Invalid login credentials"})
 
-# Protected logout endpoint
-@app.post("/auth/logout", status_code=204, tags=["Authentication"])
+@app.post("/auth/logout", status_code=204, tags=["Authentication"], summary="End User Session")
 def logout(current_user: dict = Depends(get_current_user)):
     try:
         supabase_client.auth.sign_out(current_user.get("token"))
@@ -128,12 +139,11 @@ def logout(current_user: dict = Depends(get_current_user)):
         pass
     return Response(status_code=204)
 
-@app.get("/public/info", tags=["Public"])
+@app.get("/public/info", tags=["Public"], summary="Public Information")
 def public_info():
     return {"message": "Welcome stranger! This info is public."}
 
-# Protected profile endpoint using reusable middleware
-@app.get("/protected/profile", tags=["Protected"])
+@app.get("/protected/profile", tags=["Protected"], summary="Get User Profile")
 def get_profile(current_user: dict = Depends(get_current_user)):
     return {
         "id": current_user["id"],
@@ -141,8 +151,7 @@ def get_profile(current_user: dict = Depends(get_current_user)):
         "created_at": current_user["created_at"]
     }
 
-# Second protected route demonstrating middleware reuse
-@app.get("/protected/dashboard", tags=["Protected"])
+@app.get("/protected/dashboard", tags=["Protected"], summary="Get User Dashboard")
 def get_dashboard(current_user: dict = Depends(get_current_user)):
     return {
         "message": f"Welcome to your private dashboard, {current_user['email']}!",
