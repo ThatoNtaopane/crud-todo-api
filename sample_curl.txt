@@ -1,0 +1,28 @@
+# Stage 3: Full CRUD Verification via curl against Containerized Stack
+
+# 1. Read all tasks (GET /tasks -> 200 OK)
+curl -i http://localhost:3000/tasks
+
+# 2. Read single task by ID (GET /tasks/1 -> 200 OK)
+curl -i http://localhost:3000/tasks/1
+
+# 3. Create a new task (POST /tasks -> 201 Created with RETURNING)
+curl -i -X POST http://localhost:3000/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Containerize stack with Docker Compose"}'
+
+# 4. Update task completion status (PUT /tasks/4 -> 200 OK)
+curl -i -X PUT http://localhost:3000/tasks/4 \
+  -H "Content-Type: application/json" \
+  -d '{"done": true}'
+
+# 5. Delete task (DELETE /tasks/4 -> 204 No Content)
+curl -i -X DELETE http://localhost:3000/tasks/4
+
+# 6. Verify 404 Not Found on deleted task (GET /tasks/4 -> 404 Not Found)
+curl -i http://localhost:3000/tasks/4
+
+# 7. Validation failure on empty title (POST /tasks -> 400 Bad Request)
+curl -i -X POST http://localhost:3000/tasks \
+  -H "Content-Type: application/json" \
+  -d '{}'

@@ -29,4 +29,3 @@ tasks.db-shm
 *.swo
 .DS_Store
 node_modules/
-sample_curl.txt
