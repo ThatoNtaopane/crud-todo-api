@@ -1,234 +1,195 @@
-# FlyRank Backend Track · Week 2 · Assignment A1: Build Your First CRUD API (Python Lane)
+# FlyRank Backend Track · Week 3 · Assignment A2: Connecting Your CRUD to the Database (Python Lane)
 
-A lightweight, production-structured in-memory RESTful CRUD API that manages a to-do list, built with **Python 3.11**, **FastAPI**, **Pydantic**, and **Swagger UI / OpenAPI 3.0**.
+A persistent, production-structured RESTful CRUD API that stores tasks in a disk-backed **SQLite** database, built with **Python 3.10+**, **FastAPI**, **SQLite3**, **Pydantic**, and **Swagger UI / OpenAPI 3.0**.
+
+![DB Browser for SQLite](docs/db-browser-tasks.png)
 
 ---
 
 ## 1. What This Is
 
-This project fulfills the **FlyRank Internship Backend Track (Week 2, Assignment A1)**. It demonstrates the fundamental server-side HTTP request-response cycle by implementing the four core CRUD operations (**C**reate, **R**ead, **U**pdate, **D**elete) against an in-memory data store.
+This project is the direct sequel to **Assignment A1 (Build your first CRUD API)** for the **FlyRank Backend Internship**. In Assignment 1, the API stored data in an ephemeral in-memory Python list—meaning all state vanished every time the server restarted.
 
-### Key Architectural Features
-- **In-Memory Store**: Fast, self-contained list of task entities (no external database required).
-- **Strict HTTP Status Semantics**:
-  - `200 OK` for successful reads, updates, and stats.
-  - `201 Created` for task creation with location receipt.
-  - `204 No Content` for successful task deletion.
-  - `400 Bad Request` for missing/empty required fields and validation errors.
-  - `404 Not Found` for nonexistent task IDs with descriptive error JSON.
-- **Interactive Swagger Documentation**: Built-in interactive OpenAPI explorer at `/docs`.
-- **Production Enhancements & Stretch Goals**:
-  - Full Query Filtering (`?done=true`, `?done=false`).
-  - Search Query Filtering (`?search=term`).
-  - Limit & Offset Pagination (`?limit=2&offset=1`).
-  - Server Analytics Endpoint (`GET /stats`).
-  - Demo Seed Restoration Endpoint (`POST /reset`).
+In **Week 3 (Assignment A2)**, we replaced the in-memory storage layer with a persistent, serverless **SQLite** database (`tasks.db`). 
+
+### Core Architectural Principle: Storage as an Implementation Detail
+The public API contracts, endpoints, request schemas, validation rules, and response shapes remain **100% identical** to Assignment 1. Clients send the same HTTP requests and receive the same responses. Only the underlying storage engine changed—swapping memory for disk. 
+
+Because the API describes *what* the application does, and the database describes *where* it stores state, our automated test suite passes seamlessly across both implementations. Storage is truly just an implementation detail.
 
 ---
 
-## 2. How to Install and Run
+## 2. Why SQLite Was Chosen
+
+1. **Zero Configuration & Serverless**: SQLite requires no external daemon, background service, or network socket. The entire engine runs embedded within the Python application process via the standard library (`sqlite3`).
+2. **Single-File Portability**: The entire database lives in a single compact file (`tasks.db`) right alongside the code.
+3. **Guaranteed Durability & Crash Safety**: SQLite implements full ACID (Atomicity, Consistency, Isolation, Durability) guarantees, writing transactions to disk so data reliably survives process crashes, server restarts, and reboots.
+4. **Instant Startup**: There is zero connection handshake latency or network overhead, making it ideal for microservices, embedded applications, and testing environments.
+
+---
+
+## 3. Database Architecture & Location
+
+* **Database File**: `tasks.db` located at the root of the project.
+* **Automatic Creation**: The database file, table schema, and indexes are generated automatically on startup (`init_db()`). No manual SQL scripts or database migrations need to be run before launching.
+* **Git-Ignored**: `tasks.db` is included in `.gitignore` so that every fresh git clone starts clean and creates its own local instance.
+* **Table Schema**:
+  ```sql
+  CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      done INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+  );
+  ```
+* **Performance Indexes**:
+  ```sql
+  CREATE INDEX IF NOT EXISTS idx_tasks_done ON tasks(done);
+  CREATE INDEX IF NOT EXISTS idx_tasks_title ON tasks(title);
+  ```
+  *What an index is for:* An index is a dedicated B-tree data structure that allows the database engine to locate matching rows in $O(\log N)$ time instead of scanning every single row in the table ($O(N)$ full table scan).
+* **Atomic Seeding Transaction**:
+  Seeding the three default tasks is wrapped in an atomic database transaction (`conn.commit()`) preceded by `SELECT COUNT(*) FROM tasks;`.
+  *Why transactions matter:* Wrapping multi-step writes in a transaction ensures all-or-nothing atomicity; if any single insertion fails, the entire batch rolls back, preventing corrupt, half-seeded states.
+
+---
+
+## 4. How to Install and Run
 
 ### Prerequisites
-- Python 3.10 or higher
+- Python 3.10+
 - Git
 
 ### One Documented Command to Run
-Clone the repository and start the server with auto-reload:
+Clone the repository and launch the server in a single command:
 
 ```bash
-git clone https://github.com/your-username/crud-todo-api.git && cd crud-todo-api && pip install -r requirements.txt && uvicorn main:app --reload --port 8000
+git clone https://github.com/ThatoNtaopane/crud-todo-api.git && cd crud-todo-api && pip install -r requirements.txt && uvicorn main:app --reload --port 8000
 ```
 
-Once running, the server is live at:
+On first launch, `tasks.db` is created automatically, and `GET /tasks` will return the 3 seeded tasks immediately.
+
+### Key Service URLs
 - **API Base URL**: `http://localhost:8000`
 - **Interactive Swagger UI**: `http://localhost:8000/docs`
-- **OpenAPI Schema**: `http://localhost:8000/openapi.json`
+- **OpenAPI JSON Specification**: `http://localhost:8000/openapi.json`
 - **Health Check**: `http://localhost:8000/health`
 
-To execute the test suite:
+### Automated Test Suite Execution
+Run the full 24-case automated test suite (validating all endpoints, status codes, restart persistence, and SQL injection safety):
+
 ```bash
 python3 test_api.py
 ```
 
 ---
 
-## 3. Endpoints Reference Table
+## 5. Endpoints Reference Table
 
 | Method | Endpoint | Status Codes | Description | Request Body Example | Response Body Example |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **GET** | `/` | `200` | API service discovery & root metadata | *None* | `{"name": "Task API", "version": "1.0", "endpoints": ["/tasks"]}` |
+| **GET** | `/` | `200` | API service discovery & root metadata | *None* | `{"name": "Task API", "version": "2.0", "endpoints": ["/tasks"]}` |
 | **GET** | `/health` | `200` | Health check endpoint | *None* | `{"status": "ok"}` |
-| **GET** | `/tasks` | `200` | List all tasks (supports `done`, `search`, `limit`, `offset`) | *None* | `[{"id": 1, "title": "Buy groceries", "done": false}, ...]` |
-| **GET** | `/tasks/{id}` | `200`, `404` | Retrieve a single task by ID | *None* | `{"id": 1, "title": "Buy groceries", "done": false}` |
-| **POST** | `/tasks` | `201`, `400` | Create a new task (auto-increment ID, `done=false`) | `{"title": "Buy milk"}` | `{"id": 4, "title": "Buy milk", "done": false}` |
-| **PUT** | `/tasks/{id}` | `200`, `400`, `404` | Update title and/or done status | `{"title": "Updated", "done": true}` | `{"id": 1, "title": "Updated", "done": true}` |
-| **DELETE** | `/tasks/{id}` | `204`, `404` | Remove task by ID | *None* | *Empty body* |
-| **GET** | `/stats` | `200` | Compute task metrics | *None* | `{"total": 3, "done": 1, "open": 2}` |
-| **POST** | `/reset` | `200` | Restore initial 3 example tasks | *None* | `{"message": "Tasks successfully reset...", "tasks": [...]}` |
+| **GET** | `/tasks` | `200` | List & filter tasks (SQL `LIKE`, `done`, `sort`, `limit`, `offset`) | *None* | `[{"id": 1, "title": "Buy groceries", "done": false}, ...]` |
+| **GET** | `/tasks/{id}` | `200`, `404` | Parameterized single-task fetch by ID | *None* | `{"id": 1, "title": "Buy groceries", "done": false}` |
+| **POST** | `/tasks` | `201`, `400` | Create new task (SQL `INSERT`, auto ID, `done=0`) | `{"title": "Buy milk"}` | `{"id": 4, "title": "Buy milk", "done": false}` |
+| **PUT** | `/tasks/{id}` | `200`, `400`, `404` | Parameterized `UPDATE` for title and/or done | `{"title": "Updated", "done": true}` | `{"id": 1, "title": "Updated", "done": true}` |
+| **DELETE** | `/tasks/{id}` | `204`, `404` | Parameterized `DELETE` from SQLite | *None* | *Empty body* |
+| **GET** | `/stats` | `200` | Real metrics computed with SQL `SELECT COUNT(*)` | *None* | `{"total": 3, "done": 1, "open": 2}` |
+| **POST** | `/reset` | `200` | Atomically reset SQLite table to initial 3 seed items | *None* | `{"message": "Tasks successfully reset...", "tasks": [...]}` |
 
 ---
 
-## 4. Live `curl -i` Verification Outputs
+## 6. Stage 4: Manual SQL Exploration
 
-### 4.1. List Tasks (`GET /tasks`)
-```http
-HTTP/1.1 200 OK
-date: Mon, 12 Oct 2026 13:21:46 GMT
-server: uvicorn
-content-length: 152
-content-type: application/json
+During Stage 4, `tasks.db` was inspected directly using DB Browser for SQLite and raw SQL queries:
 
-[
-  {"id": 1, "title": "Buy groceries", "done": false},
-  {"id": 2, "title": "Read FastAPI documentation", "done": true},
-  {"id": 3, "title": "Build CRUD API", "done": false}
-]
+```sql
+-- 1. List every task
+SELECT * FROM tasks;
+
+-- 2. Filter for only completed tasks
+SELECT * FROM tasks WHERE done = 1;
+
+-- 3. Count total tasks
+SELECT COUNT(*) FROM tasks;
+
+-- 4. Mark every task as completed
+UPDATE tasks SET done = 1;
+
+-- 5. Delete all completed tasks
+DELETE FROM tasks WHERE done = 1;
 ```
 
-### 4.2. Create Task (`POST /tasks`)
-```bash
-curl -i -X POST http://localhost:8000/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Buy milk"}'
-```
-```http
-HTTP/1.1 201 Created
-date: Mon, 12 Oct 2026 13:21:47 GMT
-server: uvicorn
-content-length: 42
-content-type: application/json
-
-{"id": 4, "title": "Buy milk", "done": false}
-```
-
-### 4.3. Client Validation Error (`POST /tasks` with `{}`)
-```bash
-curl -i -X POST http://localhost:8000/tasks \
-  -H "Content-Type: application/json" \
-  -d '{}'
-```
-```http
-HTTP/1.1 400 Bad Request
-date: Mon, 12 Oct 2026 13:21:48 GMT
-server: uvicorn
-content-length: 46
-content-type: application/json
-
-{"error": "Validation error: field required"}
-```
-
-### 4.4. Not Found Error (`GET /tasks/99`)
-```bash
-curl -i http://localhost:8000/tasks/99
-```
-```http
-HTTP/1.1 404 Not Found
-date: Mon, 12 Oct 2026 13:21:49 GMT
-server: uvicorn
-content-length: 30
-content-type: application/json
-
-{"error": "Task 99 not found"}
-```
-
-### 4.5. Delete Task (`DELETE /tasks/4`)
-```bash
-curl -i -X DELETE http://localhost:8000/tasks/4
-```
-```http
-HTTP/1.1 204 No Content
-date: Mon, 12 Oct 2026 13:21:50 GMT
-server: uvicorn
-```
+### Stage 4 Checkpoint Results: Direct Database Manipulation & Instant Sync
+* **Example Query**:
+  ```sql
+  SELECT id, title, done FROM tasks WHERE done = 1;
+  ```
+* **Execution Output**:
+  ```text
+  (2, 'Read FastAPI documentation', 1)
+  ```
+* **Synchronization Observation**:
+  After running `UPDATE tasks SET done = 1;` directly in the database, querying `GET /tasks` from the API immediately returned all tasks with `done: true` without restarting the server. Because the API process and DB Browser read the exact same underlying file (`tasks.db`), there is zero caching delay—the SQLite file is the single, instantaneous source of truth.
 
 ---
 
-## 5. Interactive Swagger UI Documentation
+## 7. Reflection: Schema Evolution & Why Migrations Exist
 
-FastAPI automatically parses route type annotations, Pydantic schemas, summaries, and docstrings to generate an interactive OpenAPI 3.0 specification served directly at `/docs`:
+Adding `created_at` and `updated_at` columns to the `tasks` table highlighted the tension between application evolution and live data. In development, modifying table shape often tempts developers to delete the database and restart fresh. In production, however, live customer data cannot be wiped. 
 
-![Swagger UI Documentation](docs/swagger-ui.png)
-
-Developers can use the **Try it out** button in Swagger UI to test the complete CRUD lifecycle interactively without writing curl commands.
+That visceral friction—needing to alter a table's structure while preserving existing records—is why database migrations exist. Migrations provide version-controlled, incremental, and reversible scripts (such as Alembic or Flyway) that transition database schemas safely across environments.
 
 ---
 
-## 6. Stretch Goals: Deep Dives
+## 8. Bonus Stage: AI vs Me (Code Review & AI Rematch)
 
-### Why Real APIs Never Return "Everything" (Pagination)
-In real-world applications, resources grow into thousands or millions of records. An unpaginated endpoint like `GET /tasks` or `GET /orders` creates catastrophic architectural risks:
-1. **Memory Exhaustion (OOM)**: Loading millions of records into server memory causes high RAM pressure and crashes server processes.
-2. **Network Bandwidth & Latency**: Sending massive payloads clogs the network pipe, multiplies latency, and slows down client devices (especially mobile).
-3. **Database Query Starvation**: Full table scans lock tables or saturate database connection pools, degrading performance for all concurrent users.
-4. **Denial of Service (DoS)**: An unpaginated API is an easy target for resource exhaustion attacks.
+In Stage 6, we prompted an AI assistant to migrate the original in-memory API to SQLite and quarantined its code in `ai-version/`.
 
-By supporting `GET /tasks?limit=2&offset=2`, clients retrieve data in predictable, discrete pages, ensuring consistent sub-10ms response times and constant memory usage.
-
-### The Mortality Experiment
-When new tasks are created during a running session and the server is restarted (`Ctrl+C` followed by `uvicorn main:app`), subsequent requests to `GET /tasks` reveal that all newly created tasks have disappeared, reverting back to the original 3 initial seed tasks. This occurs because the state was stored strictly in the volatile memory (RAM) allocated to the Python process, which is reclaimed by the operating system upon termination—a vivid demonstration of why persistent databases (SQL/NoSQL) and data migrations exist, setting the stage for Week 3.
-
----
-
-## 7. Submission Checklist
-- [x] Python 3.10+ FastAPI lane selected.
-- [x] In-memory storage with 3 pre-filled tasks.
-- [x] Full CRUD operations implemented: `GET /tasks`, `GET /tasks/{id}`, `POST /tasks`, `PUT /tasks/{id}`, `DELETE /tasks/{id}`.
-- [x] Strict status codes: `200`, `201`, `204`, `400`, `404`.
-- [x] Swagger UI active at `/docs` with detailed summaries and schemas.
-- [x] Optional extras implemented: Query filtering, search, pagination, stats, and seed reset.
-- [x] At least 6 commits across stages.
-
----
-
-## 8. Bonus Stage 7: The AI Rematch ("AI vs Me")
-
-In Stage 7, we put our handwritten API head-to-head against an AI code generation model by writing a natural-language specification prompt from memory and reviewing the resulting code in quarantine (`ai-version/`).
-
-### 8.1. Initial Prompt (Written from Memory)
+### 8.1. The AI Prompt
 ```text
-Build a RESTful CRUD API for managing tasks in Python using FastAPI.
-Store tasks in memory as a list pre-populated with 3 tasks having id, title, and done fields.
-Implement the following endpoints:
-- GET /: Return API metadata with name, version, and endpoints.
-- GET /health: Return status ok.
-- GET /tasks: List all tasks.
-- GET /tasks/{id}: Get task by id; return 404 if not found with error message.
-- POST /tasks: Create a task with title. Set done to false and assign next id. Return 201. If title is missing or empty, return 400 Bad Request with an error JSON.
-- PUT /tasks/{id}: Update title and/or done status. Return 200. Return 404 if not found. Return 400 if body is empty or invalid.
-- DELETE /tasks/{id}: Delete task. Return 204 No Content with empty body. Return 404 if not found.
-Include Swagger UI documentation at /docs.
+Migrate our existing FastAPI task CRUD API from using an in-memory Python list to a persistent SQLite database using Python's built-in sqlite3 standard library.
+
+Requirements:
+1. Database file: Name it tasks.db in the root project folder. It must be created automatically if missing.
+2. Schema: A single table named 'tasks' with columns: id (INTEGER PRIMARY KEY AUTOINCREMENT), title (TEXT NOT NULL), and done (INTEGER DEFAULT 0).
+3. Initial Data: Seed three default tasks ("Buy groceries", "Read FastAPI documentation", "Build CRUD API") only when the database is completely empty. Do not duplicate them on server restarts.
+4. Endpoints: Keep the five CRUD endpoints intact with identical paths and request/response contracts:
+   - GET /tasks (list all tasks)
+   - GET /tasks/{task_id} (fetch one task by ID)
+   - POST /tasks (create new task, return 201)
+   - PUT /tasks/{task_id} (update title and/or done status, return 200)
+   - DELETE /tasks/{task_id} (delete task, return 204 No Content)
+5. Safety: All SQL queries MUST use parameterized queries (?) to prevent SQL injection vulnerabilities. Never interpolate user input into SQL strings.
+6. Validation & Error Handling: Maintain 400 Bad Request for invalid/empty request bodies, and 404 Not Found for non-existent IDs. Error responses must include JSON error messages.
 ```
 
-### 8.2. Three Concrete Differences Found via Side-by-Side Diff & Tests
+### 8.2. AI Code Review: Three Concrete Differences
 
-Running `git diff --no-index main.py ai-version/main.py` and firing our Stage 4 test curl commands against the AI's quarantined implementation revealed three critical architectural divergences:
+1. **What Did the AI Do Better — And Can You Explain It?**
+   * *Lean, Direct Return*: In `POST /tasks`, the AI generated the return dictionary directly (`{"id": new_id, "title": payload.title, "done": False}`) without executing a follow-up `SELECT` query. While our production code issued a second `SELECT` to guarantee database-generated timestamps were retrieved, the AI's approach eliminated an extra round-trip query.
+2. **What Did the AI Get Wrong or Quietly Ignore?**
+   * *Connection Leaking & No Context Managers*: The AI called `sqlite3.connect()` manually inside every function and called `conn.close()` at the end, but did not use Python context managers (`with conn:`). Any exception raised during query execution leaked open connections and file handles.
+   * *Tuple Index Slicing vs. Row Mapping*: The AI omitted `conn.row_factory = sqlite3.Row` and instead manually indexed tuples (`r[0]`, `r[1]`, `r[2]`). Any future column addition breaks the entire API.
+   * *Error Contract Drift*: The AI defaulted to `raise HTTPException(status_code=404, detail="Task not found")`, producing `{"detail": ...}` instead of the required `{"error": ...}` JSON format from Assignment 1.
+3. **What Did the Prompt Forget to Specify — And What Did the AI Silently Decide?**
+   * The prompt forgot to specify the exact JSON key for error envelopes (`"error"` vs `"detail"`), connection lifecycle patterns, and query performance indexes. The AI silently chose default FastAPI error formats, unindexed tables, and ad-hoc connection instances.
 
-1. **Validation Status Code (422 vs 400)**:
-   - *AI implementation*: Defaulted to standard FastAPI Pydantic behavior. Sending an empty JSON object `POST /tasks -d '{}'` triggered a `422 Unprocessable Entity` response with an array of validation errors in `{"detail": [...]}`.
-   - *Specification requirement*: Required status `400 Bad Request` with `{"error": "..."}`.
-   - *Root cause*: In FastAPI, Pydantic validation errors raise `RequestValidationError`, which returns 422 unless an explicit exception handler is defined on `app.exception_handler(RequestValidationError)`.
+### 8.3. The Rematch
+We hardened the specification in `ai-version/rematch_prompt.txt` to enforce `get_db()` context managers with `row_factory`, explicit `{"error": ...}` exception handlers, and performance indexes. The resulting `ai-version/main_v2.py` achieved full architectural parity.
 
-2. **Error Envelope Structure (`{"detail": ...}` vs `{"error": ...}`)**:
-   - *AI implementation*: Raised `HTTPException(status_code=404, detail="Task 99 not found")`, producing `{"detail": "Task 99 not found"}`.
-   - *Specification requirement*: Required `{"error": "Task 99 not found"}`.
-   - *Impact*: In automated client-server integration, schema differences in error payloads cause client JSON parsing crashes.
+---
 
-3. **Silent Acceptance of Empty Update Payloads on `PUT`**:
-   - *AI implementation*: Sending `PUT /tasks/1 -d '{}'` returned `200 OK` without modifying any fields.
-   - *Specification requirement*: Required status `400 Bad Request` for an empty or invalid update body.
-   - *Solution*: A `@root_validator` check is needed in Pydantic to ensure at least one mutable field (`title` or `done`) is present.
+## 9. Git Commit Progression
 
-### 8.3. Three Analytical Review Questions
-
-1. **What did the AI do better — and do you understand its version well enough to explain it?**
-   - The AI consistently separated request and response schemas using `response_model=TaskResponse` and used HTTP status constants (`status.HTTP_201_CREATED`, `status.HTTP_204_NO_CONTENT`). This guarantees that sensitive internal fields are stripped from responses and aligns with FastAPI best practices.
-
-2. **What did it get wrong or quietly ignore from your prompt?**
-   - The AI quietly ignored the explicit requirement to return `400 Bad Request` on missing fields and empty PUT bodies, falling back to framework defaults (`422` on schema violation and `200` no-op on empty optional fields).
-
-3. **What did your prompt forget to specify — and what did the AI silently decide for you?**
-   - The prompt forgot to specify the exact error envelope JSON key (`{"error": ...}` vs `{"detail": ...}`) and the whitespace trimming policy. The AI silently decided to use FastAPI's built-in `detail` key and added basic `.strip()` trimming inside the route handler rather than in a schema validator.
-
-### 8.4. The Rematch (Improved Prompt & Outcome)
-- **Improved Prompt**: Explicitly instructed the AI to override `RequestValidationError` to return `400` with `{"error": ...}`, enforce `@root_validator` on `PUT` bodies, and match the exact status codes.
-- **Outcome (One Sentence)**: *By supplying exact error JSON schemas, framework exception handler requirements, and input boundary constraints in the rematch specification, the AI generated a compliant implementation (`ai-version/main_v2.py`) that passed all Stage 4 curl checkpoints on the first try.*
+This repository contains clean, stage-by-stage commits demonstrating the complete migration:
+* `Stage 0: create SQLite database`
+* `Stage 1: database read endpoints`
+* `Stage 2: insert into database`
+* `Stage 3: update and delete with SQL`
+* `Stage 4: explored SQLite`
+* `Extras: search, filters, stats, timestamps, and indexes`
+* `Stage 5: database documentation`
+* `Stage 6: AI vs me`
