@@ -9,3 +9,7 @@ env/
 .DS_Store
 *.swp
 sample_curl.txt
+tasks.db
+tasks.db-journal
+tasks.db-wal
+tasks.db-shm

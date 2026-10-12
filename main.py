@@ -1,3 +1,4 @@
+import sqlite3
 from typing import Optional, List
 from fastapi import FastAPI, Request, Query
 from fastapi.responses import JSONResponse, Response
@@ -6,14 +7,57 @@ from pydantic import BaseModel, Field, validator, root_validator
 
 app = FastAPI(
     title="Task Management API",
-    description="A lightweight in-memory CRUD API for managing to-do tasks, built with FastAPI and OpenAPI/Swagger UI.",
-    version="1.0.0",
+    description="A SQLite-backed CRUD API for managing to-do tasks, built with FastAPI and SQLite3.",
+    version="2.0.0",
     openapi_tags=[
         {"name": "System", "description": "API root discovery and health check endpoints"},
         {"name": "Tasks", "description": "Core CRUD operations and querying for tasks"},
         {"name": "Analytics & Utilities", "description": "Computed metrics and demo seed controls"},
     ]
 )
+
+DATABASE_FILE = "tasks.db"
+
+def get_db():
+    """Establish a connection to the SQLite database with Row mapping enabled."""
+    conn = sqlite3.connect(DATABASE_FILE, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA synchronous = OFF;")
+    return conn
+
+def init_db():
+    """Create tasks table if missing and seed initial tasks inside an atomic transaction."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                done INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
+        """)
+        # Verify row count before seeding to guarantee idempotency across restarts
+        cursor.execute("SELECT COUNT(*) FROM tasks;")
+        count = cursor.fetchone()[0]
+        if count == 0:
+            cursor.executemany(
+                "INSERT INTO tasks (id, title, done) VALUES (?, ?, ?);",
+                [
+                    (1, "Buy groceries", 0),
+                    (2, "Read FastAPI documentation", 1),
+                    (3, "Build CRUD API", 0),
+                ]
+            )
+            conn.commit()
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
+
+# Auto-initialize database on module load
+init_db()
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -27,7 +71,7 @@ DEFAULT_TASKS = [
     {"id": 3, "title": "Build CRUD API", "done": False},
 ]
 
-# In-memory "database" initialized from seed
+# In-memory tasks variable maintained during Stage 0 transition
 tasks = [dict(t) for t in DEFAULT_TASKS]
 
 class Task(BaseModel):
@@ -68,21 +112,19 @@ class StatsResponse(BaseModel):
 @app.get(
     "/",
     tags=["System"],
-    summary="API Root Information",
-    description="Returns API service information, version number, and main endpoint locations."
+    summary="API Root Information"
 )
 def get_root():
     return {
         "name": "Task API",
-        "version": "1.0",
+        "version": "2.0",
         "endpoints": ["/tasks"]
     }
 
 @app.get(
     "/health",
     tags=["System"],
-    summary="Service Health Check",
-    description="Returns operational health status of the API server."
+    summary="Service Health Check"
 )
 def health_check():
     return {"status": "ok"}
@@ -91,38 +133,21 @@ def health_check():
     "/tasks",
     response_model=List[Task],
     tags=["Tasks"],
-    summary="List and Filter Tasks",
-    description="Retrieve tasks with optional filtering by completion status (done), substring search, and limit/offset pagination."
+    summary="List Tasks",
+    description="Retrieve seeded tasks from SQLite."
 )
-def list_tasks(
-    done: Optional[bool] = Query(None, description="Filter by completion status (true/false)"),
-    search: Optional[str] = Query(None, description="Search case-insensitive substring in task titles"),
-    limit: Optional[int] = Query(None, ge=1, description="Maximum number of items to return"),
-    offset: Optional[int] = Query(None, ge=0, description="Number of items to skip from beginning")
-):
-    results = tasks
-
-    if done is not None:
-        results = [t for t in results if t["done"] == done]
-
-    if search is not None:
-        q = search.strip().lower()
-        results = [t for t in results if q in t["title"].lower()]
-
-    if offset is not None:
-        results = results[offset:]
-
-    if limit is not None:
-        results = results[:limit]
-
-    return results
+def list_tasks():
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, title, done FROM tasks ORDER BY id ASC;")
+        rows = cursor.fetchall()
+        return [{"id": r["id"], "title": r["title"], "done": bool(r["done"])} for r in rows]
 
 @app.get(
     "/tasks/{task_id}",
     response_model=Task,
     tags=["Tasks"],
-    summary="Get Single Task by ID",
-    description="Retrieve detailed information for a specific task using its unique integer ID."
+    summary="Get Single Task by ID"
 )
 def get_task(task_id: int):
     for task in tasks:
@@ -135,8 +160,7 @@ def get_task(task_id: int):
     response_model=Task,
     status_code=201,
     tags=["Tasks"],
-    summary="Create New Task",
-    description="Add a new task to the in-memory list with automated ID generation and input validation."
+    summary="Create New Task"
 )
 def create_task(task_data: TaskCreate):
     next_id = max([t["id"] for t in tasks], default=0) + 1
@@ -152,8 +176,7 @@ def create_task(task_data: TaskCreate):
     "/tasks/{task_id}",
     response_model=Task,
     tags=["Tasks"],
-    summary="Update Existing Task",
-    description="Update the title and/or completion status of an existing task by ID."
+    summary="Update Existing Task"
 )
 def update_task(task_id: int, task_data: TaskUpdate):
     for task in tasks:
@@ -169,8 +192,7 @@ def update_task(task_id: int, task_data: TaskUpdate):
     "/tasks/{task_id}",
     status_code=204,
     tags=["Tasks"],
-    summary="Delete Task",
-    description="Remove a task from the list by its ID. Returns 204 No Content upon success."
+    summary="Delete Task"
 )
 def delete_task(task_id: int):
     for index, task in enumerate(tasks):
@@ -182,9 +204,7 @@ def delete_task(task_id: int):
 @app.get(
     "/stats",
     response_model=StatsResponse,
-    tags=["Analytics & Utilities"],
-    summary="Task Statistics",
-    description="Computes aggregate metrics for tasks in memory (total, done, open counts)."
+    tags=["Analytics & Utilities"]
 )
 def get_stats():
     total_count = len(tasks)
@@ -194,9 +214,7 @@ def get_stats():
 
 @app.post(
     "/reset",
-    tags=["Analytics & Utilities"],
-    summary="Reset Seed Tasks",
-    description="Restores the in-memory tasks list back to the initial 3 example tasks."
+    tags=["Analytics & Utilities"]
 )
 def reset_tasks():
     global tasks
