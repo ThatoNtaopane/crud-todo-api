@@ -1,12 +1,18 @@
-Build an in-memory CRUD Task API in Python using FastAPI with zero external database dependencies.
-Ensure strict adherence to these technical specifications:
-1. Error Format: All error responses (400 and 404) MUST return JSON format {"error": "<message>"} instead of FastAPI's default {"detail": "..."}. Override RequestValidationError with an exception handler so that missing/invalid JSON body returns 400 Bad Request instead of 422 Unprocessable Entity.
-2. Status Codes:
-   - 200 for successful GET and PUT.
-   - 201 for successful POST with new task object.
-   - 204 with empty body (Response(status_code=204)) for DELETE.
-   - 400 for empty body {} on POST and PUT, or empty/whitespace string for title.
-   - 404 for unknown task ID on GET, PUT, and DELETE.
-3. In-Memory State: Pre-seed with 3 tasks: [{"id": 1, "title": "Buy groceries", "done": False}, {"id": 2, "title": "Read FastAPI documentation", "done": True}, {"id": 3, "title": "Build CRUD API", "done": False}].
-4. ID Assignment: Next free integer ID on POST.
-5. Endpoints: Root (GET /), Health (GET /health), List & Single (GET /tasks, GET /tasks/{id}), Create (POST /tasks), Update (PUT /tasks/{id}), Delete (DELETE /tasks/{id}).
+Migrate our existing FastAPI task CRUD API from an in-memory list to SQLite with strict production engineering standards:
+
+1. Architecture & Connection Management:
+   - Database file: tasks.db in root.
+   - Use a helper function get_db() returning sqlite3.connect(..., check_same_thread=False) with conn.row_factory = sqlite3.Row.
+   - Use Python context managers (with get_db() as conn:) for all database queries and automated transaction management.
+2. Schema & Performance:
+   - Table: tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))).
+   - Create indexes on tasks(done) and tasks(title) for optimized query performance.
+3. Idempotent Initialization:
+   - Initialize schema on FastAPI startup event.
+   - Check if table is empty before seeding the 3 initial tasks inside an atomic transaction.
+4. Error Handling & Contract Preservation:
+   - Preserve custom error response schema: return JSON {"error": "..."} on all 400 Bad Request and 404 Not Found responses.
+   - Implement custom RequestValidationError handler returning 400 with {"error": ...}.
+   - Return 204 No Content with an empty body on successful deletion.
+5. Parameterized Queries:
+   - All SQL statements must strictly use ? placeholders.

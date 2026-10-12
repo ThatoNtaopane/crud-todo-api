@@ -1,11 +1,14 @@
-Build a RESTful CRUD API for managing tasks in Python using FastAPI.
-Store tasks in memory as a list pre-populated with 3 tasks having id, title, and done fields.
-Implement the following endpoints:
-- GET /: Return API metadata with name, version, and endpoints.
-- GET /health: Return status ok.
-- GET /tasks: List all tasks.
-- GET /tasks/{id}: Get task by id; return 404 if not found with error message.
-- POST /tasks: Create a task with title. Set done to false and assign next id. Return 201. If title is missing or empty, return 400 Bad Request with an error JSON.
-- PUT /tasks/{id}: Update title and/or done status. Return 200. Return 404 if not found. Return 400 if body is empty or invalid.
-- DELETE /tasks/{id}: Delete task. Return 204 No Content with empty body. Return 404 if not found.
-Include Swagger UI documentation at /docs.
+Migrate our existing FastAPI task CRUD API from using an in-memory Python list to a persistent SQLite database using Python's built-in sqlite3 standard library.
+
+Requirements:
+1. Database file: Name it tasks.db in the root project folder. It must be created automatically if missing.
+2. Schema: A single table named 'tasks' with columns: id (INTEGER PRIMARY KEY AUTOINCREMENT), title (TEXT NOT NULL), and done (INTEGER DEFAULT 0).
+3. Initial Data: Seed three default tasks ("Buy groceries", "Read FastAPI documentation", "Build CRUD API") only when the database is completely empty. Do not duplicate them on server restarts.
+4. Endpoints: Keep the five CRUD endpoints intact with identical paths and request/response contracts:
+   - GET /tasks (list all tasks)
+   - GET /tasks/{task_id} (fetch one task by ID)
+   - POST /tasks (create new task, return 201)
+   - PUT /tasks/{task_id} (update title and/or done status, return 200)
+   - DELETE /tasks/{task_id} (delete task, return 204 No Content)
+5. Safety: All SQL queries MUST use parameterized queries (?) to prevent SQL injection vulnerabilities. Never interpolate user input into SQL strings.
+6. Validation & Error Handling: Maintain 400 Bad Request for invalid/empty request bodies, and 404 Not Found for non-existent IDs. Error responses must include JSON error messages.
