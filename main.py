@@ -1,13 +1,13 @@
 """FlyRank Internship · Backend Track · Week 2 · Assignment A4
 Auth · Login & protect
-Stage 1: Signup and login routes working
+Stage 2: Public route and unverified protected route
 """
 
 import os
 import logging
 from typing import Optional
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
@@ -28,7 +28,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enforce 400 Bad Request on validation errors per assignment specification
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
@@ -90,6 +89,24 @@ def login(creds: AuthCredentials):
         }
     except Exception:
         return JSONResponse(status_code=401, content={"error": "Invalid login credentials"})
+
+# Stage 2: Public route
+@app.get("/public/info", tags=["Public"])
+def public_info():
+    return {"message": "Welcome stranger! This info is public."}
+
+# Stage 2: Unverified protected route (checks presence of Authorization header)
+@app.get("/protected/profile", tags=["Protected"])
+def get_profile_unverified(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"error": "Access token required"})
+    
+    token = authorization.split("Bearer ", 1)[1].strip()
+    if not token:
+        return JSONResponse(status_code=401, content={"error": "Access token required"})
+    
+    # In Stage 2, checking token presence before verification is hooked up
+    return {"message": "Token presented (verification not enabled yet)", "raw_token_prefix": token[:10]}
 
 if __name__ == "__main__":
     import uvicorn
