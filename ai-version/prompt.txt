@@ -1,0 +1,11 @@
+Build a RESTful CRUD API for managing tasks in Python using FastAPI.
+Store tasks in memory as a list pre-populated with 3 tasks having id, title, and done fields.
+Implement the following endpoints:
+- GET /: Return API metadata with name, version, and endpoints.
+- GET /health: Return status ok.
+- GET /tasks: List all tasks.
+- GET /tasks/{id}: Get task by id; return 404 if not found with error message.
+- POST /tasks: Create a task with title. Set done to false and assign next id. Return 201. If title is missing or empty, return 400 Bad Request with an error JSON.
+- PUT /tasks/{id}: Update title and/or done status. Return 200. Return 404 if not found. Return 400 if body is empty or invalid.
+- DELETE /tasks/{id}: Delete task. Return 204 No Content with empty body. Return 404 if not found.
+Include Swagger UI documentation at /docs.

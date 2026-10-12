@@ -177,3 +177,58 @@ When new tasks are created during a running session and the server is restarted 
 - [x] Swagger UI active at `/docs` with detailed summaries and schemas.
 - [x] Optional extras implemented: Query filtering, search, pagination, stats, and seed reset.
 - [x] At least 6 commits across stages.
+
+---
+
+## 8. Bonus Stage 7: The AI Rematch ("AI vs Me")
+
+In Stage 7, we put our handwritten API head-to-head against an AI code generation model by writing a natural-language specification prompt from memory and reviewing the resulting code in quarantine (`ai-version/`).
+
+### 8.1. Initial Prompt (Written from Memory)
+```text
+Build a RESTful CRUD API for managing tasks in Python using FastAPI.
+Store tasks in memory as a list pre-populated with 3 tasks having id, title, and done fields.
+Implement the following endpoints:
+- GET /: Return API metadata with name, version, and endpoints.
+- GET /health: Return status ok.
+- GET /tasks: List all tasks.
+- GET /tasks/{id}: Get task by id; return 404 if not found with error message.
+- POST /tasks: Create a task with title. Set done to false and assign next id. Return 201. If title is missing or empty, return 400 Bad Request with an error JSON.
+- PUT /tasks/{id}: Update title and/or done status. Return 200. Return 404 if not found. Return 400 if body is empty or invalid.
+- DELETE /tasks/{id}: Delete task. Return 204 No Content with empty body. Return 404 if not found.
+Include Swagger UI documentation at /docs.
+```
+
+### 8.2. Three Concrete Differences Found via Side-by-Side Diff & Tests
+
+Running `git diff --no-index main.py ai-version/main.py` and firing our Stage 4 test curl commands against the AI's quarantined implementation revealed three critical architectural divergences:
+
+1. **Validation Status Code (422 vs 400)**:
+   - *AI implementation*: Defaulted to standard FastAPI Pydantic behavior. Sending an empty JSON object `POST /tasks -d '{}'` triggered a `422 Unprocessable Entity` response with an array of validation errors in `{"detail": [...]}`.
+   - *Specification requirement*: Required status `400 Bad Request` with `{"error": "..."}`.
+   - *Root cause*: In FastAPI, Pydantic validation errors raise `RequestValidationError`, which returns 422 unless an explicit exception handler is defined on `app.exception_handler(RequestValidationError)`.
+
+2. **Error Envelope Structure (`{"detail": ...}` vs `{"error": ...}`)**:
+   - *AI implementation*: Raised `HTTPException(status_code=404, detail="Task 99 not found")`, producing `{"detail": "Task 99 not found"}`.
+   - *Specification requirement*: Required `{"error": "Task 99 not found"}`.
+   - *Impact*: In automated client-server integration, schema differences in error payloads cause client JSON parsing crashes.
+
+3. **Silent Acceptance of Empty Update Payloads on `PUT`**:
+   - *AI implementation*: Sending `PUT /tasks/1 -d '{}'` returned `200 OK` without modifying any fields.
+   - *Specification requirement*: Required status `400 Bad Request` for an empty or invalid update body.
+   - *Solution*: A `@root_validator` check is needed in Pydantic to ensure at least one mutable field (`title` or `done`) is present.
+
+### 8.3. Three Analytical Review Questions
+
+1. **What did the AI do better — and do you understand its version well enough to explain it?**
+   - The AI consistently separated request and response schemas using `response_model=TaskResponse` and used HTTP status constants (`status.HTTP_201_CREATED`, `status.HTTP_204_NO_CONTENT`). This guarantees that sensitive internal fields are stripped from responses and aligns with FastAPI best practices.
+
+2. **What did it get wrong or quietly ignore from your prompt?**
+   - The AI quietly ignored the explicit requirement to return `400 Bad Request` on missing fields and empty PUT bodies, falling back to framework defaults (`422` on schema violation and `200` no-op on empty optional fields).
+
+3. **What did your prompt forget to specify — and what did the AI silently decide for you?**
+   - The prompt forgot to specify the exact error envelope JSON key (`{"error": ...}` vs `{"detail": ...}`) and the whitespace trimming policy. The AI silently decided to use FastAPI's built-in `detail` key and added basic `.strip()` trimming inside the route handler rather than in a schema validator.
+
+### 8.4. The Rematch (Improved Prompt & Outcome)
+- **Improved Prompt**: Explicitly instructed the AI to override `RequestValidationError` to return `400` with `{"error": ...}`, enforce `@root_validator` on `PUT` bodies, and match the exact status codes.
+- **Outcome (One Sentence)**: *By supplying exact error JSON schemas, framework exception handler requirements, and input boundary constraints in the rematch specification, the AI generated a compliant implementation (`ai-version/main_v2.py`) that passed all Stage 4 curl checkpoints on the first try.*

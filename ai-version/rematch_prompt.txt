@@ -1,0 +1,12 @@
+Build an in-memory CRUD Task API in Python using FastAPI with zero external database dependencies.
+Ensure strict adherence to these technical specifications:
+1. Error Format: All error responses (400 and 404) MUST return JSON format {"error": "<message>"} instead of FastAPI's default {"detail": "..."}. Override RequestValidationError with an exception handler so that missing/invalid JSON body returns 400 Bad Request instead of 422 Unprocessable Entity.
+2. Status Codes:
+   - 200 for successful GET and PUT.
+   - 201 for successful POST with new task object.
+   - 204 with empty body (Response(status_code=204)) for DELETE.
+   - 400 for empty body {} on POST and PUT, or empty/whitespace string for title.
+   - 404 for unknown task ID on GET, PUT, and DELETE.
+3. In-Memory State: Pre-seed with 3 tasks: [{"id": 1, "title": "Buy groceries", "done": False}, {"id": 2, "title": "Read FastAPI documentation", "done": True}, {"id": 3, "title": "Build CRUD API", "done": False}].
+4. ID Assignment: Next free integer ID on POST.
+5. Endpoints: Root (GET /), Health (GET /health), List & Single (GET /tasks, GET /tasks/{id}), Create (POST /tasks), Update (PUT /tasks/{id}), Delete (DELETE /tasks/{id}).
