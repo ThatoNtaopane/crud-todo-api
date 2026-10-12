@@ -1,12 +1,16 @@
 """FlyRank Internship · Backend Track · Week 2 · Assignment A4
 Auth · Login & protect
-Stage 0: Setup server and Supabase client
+Stage 1: Signup and login routes working
 """
 
 import os
 import logging
+from typing import Optional
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel
 from supabase_client import supabase_client
 
 load_dotenv()
@@ -24,6 +28,18 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Enforce 400 Bad Request on validation errors per assignment specification
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=400,
+        content={"error": "Email and password are required"}
+    )
+
+class AuthCredentials(BaseModel):
+    email: Optional[str] = None
+    password: Optional[str] = None
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("Server running and connected to Supabase at %s on port %d", SUPABASE_URL, PORT)
@@ -32,7 +48,49 @@ async def startup_event():
 def health_check():
     return {"status": "ok", "service": "FlyRank Auth API"}
 
+@app.post("/auth/signup", status_code=201, tags=["Authentication"])
+def signup(creds: AuthCredentials):
+    if not creds.email or not creds.email.strip() or not creds.password or not creds.password.strip():
+        return JSONResponse(status_code=400, content={"error": "Email and password are required"})
+
+    try:
+        res = supabase_client.auth.sign_up({"email": creds.email.strip(), "password": creds.password.strip()})
+        user = res.user
+        return JSONResponse(
+            status_code=201,
+            content={
+                "id": user.id,
+                "email": user.email,
+                "created_at": user.created_at,
+                "message": "User registered successfully"
+            }
+        )
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
+@app.post("/auth/login", status_code=200, tags=["Authentication"])
+def login(creds: AuthCredentials):
+    if not creds.email or not creds.email.strip() or not creds.password or not creds.password.strip():
+        return JSONResponse(status_code=400, content={"error": "Email and password are required"})
+
+    try:
+        res = supabase_client.auth.sign_in_with_password({"email": creds.email.strip(), "password": creds.password.strip()})
+        session = res.session
+        user = res.user
+        return {
+            "access_token": session.access_token,
+            "refresh_token": session.refresh_token,
+            "token_type": session.token_type,
+            "expires_in": session.expires_in,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "created_at": user.created_at
+            }
+        }
+    except Exception:
+        return JSONResponse(status_code=401, content={"error": "Invalid login credentials"})
+
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Starting server on port %d...", PORT)
     uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
