@@ -64,15 +64,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     msg = errors[0]["msg"] if errors else "Invalid request body"
     return JSONResponse(status_code=400, content={"error": f"Validation error: {msg}"})
 
-DEFAULT_TASKS = [
-    {"id": 1, "title": "Buy groceries", "done": False},
-    {"id": 2, "title": "Read FastAPI documentation", "done": True},
-    {"id": 3, "title": "Build CRUD API", "done": False},
-]
-
-# In-memory tasks variable maintained during transition
-tasks = [dict(t) for t in DEFAULT_TASKS]
-
 class Task(BaseModel):
     id: int = Field(..., description="Unique integer ID of the task", example=1)
     title: str = Field(..., description="Description or title of the task", example="Buy milk")
@@ -186,30 +177,52 @@ def create_task(task_data: TaskCreate):
     "/tasks/{task_id}",
     response_model=Task,
     tags=["Tasks"],
-    summary="Update Existing Task"
+    summary="Update Existing Task",
+    description="Update task title and/or done status in SQLite using parameterized SQL."
 )
 def update_task(task_id: int, task_data: TaskUpdate):
-    for task in tasks:
-        if task["id"] == task_id:
-            if task_data.title is not None:
-                task["title"] = task_data.title
-            if task_data.done is not None:
-                task["done"] = task_data.done
-            return task
-    return JSONResponse(status_code=404, content={"error": f"Task {task_id} not found"})
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, title, done FROM tasks WHERE id = ?;", (task_id,))
+        current = cursor.fetchone()
+        if not current:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"Task {task_id} not found", "detail": f"Task {task_id} not found"}
+            )
+        
+        new_title = task_data.title if task_data.title is not None else current["title"]
+        new_done = int(task_data.done) if task_data.done is not None else current["done"]
+        
+        cursor.execute(
+            "UPDATE tasks SET title = ?, done = ?, updated_at = datetime('now') WHERE id = ?;",
+            (new_title, new_done, task_id)
+        )
+        conn.commit()
+        
+        cursor.execute("SELECT id, title, done FROM tasks WHERE id = ?;", (task_id,))
+        updated = cursor.fetchone()
+        return {"id": updated["id"], "title": updated["title"], "done": bool(updated["done"])}
 
 @app.delete(
     "/tasks/{task_id}",
     status_code=204,
     tags=["Tasks"],
-    summary="Delete Task"
+    summary="Delete Task",
+    description="Remove a task from SQLite by ID. Returns 204 No Content upon success."
 )
 def delete_task(task_id: int):
-    for index, task in enumerate(tasks):
-        if task["id"] == task_id:
-            tasks.pop(index)
-            return Response(status_code=204)
-    return JSONResponse(status_code=404, content={"error": f"Task {task_id} not found"})
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM tasks WHERE id = ?;", (task_id,))
+        if not cursor.fetchone():
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"Task {task_id} not found", "detail": f"Task {task_id} not found"}
+            )
+        cursor.execute("DELETE FROM tasks WHERE id = ?;", (task_id,))
+        conn.commit()
+        return Response(status_code=204)
 
 @app.get(
     "/stats",
@@ -218,10 +231,14 @@ def delete_task(task_id: int):
     summary="Task Statistics"
 )
 def get_stats():
-    total_count = len(tasks)
-    done_count = sum(1 for t in tasks if t["done"])
-    open_count = total_count - done_count
-    return {"total": total_count, "done": done_count, "open": open_count}
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM tasks;")
+        total_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM tasks WHERE done = 1;")
+        done_count = cursor.fetchone()[0]
+        open_count = total_count - done_count
+        return {"total": total_count, "done": done_count, "open": open_count}
 
 @app.post(
     "/reset",
@@ -229,12 +246,24 @@ def get_stats():
     summary="Reset Seed Tasks"
 )
 def reset_tasks():
-    global tasks
-    tasks = [dict(t) for t in DEFAULT_TASKS]
-    return {
-        "message": "Tasks successfully reset to initial seed data",
-        "tasks": tasks
-    }
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM tasks;")
+        cursor.executemany(
+            "INSERT INTO tasks (id, title, done) VALUES (?, ?, ?);",
+            [
+                (1, "Buy groceries", 0),
+                (2, "Read FastAPI documentation", 1),
+                (3, "Build CRUD API", 0),
+            ]
+        )
+        conn.commit()
+        cursor.execute("SELECT id, title, done FROM tasks ORDER BY id ASC;")
+        rows = cursor.fetchall()
+        return {
+            "message": "Tasks successfully reset to initial seed data",
+            "tasks": [{"id": r["id"], "title": r["title"], "done": bool(r["done"])} for r in rows]
+        }
 
 if __name__ == "__main__":
     import uvicorn
