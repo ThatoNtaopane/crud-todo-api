@@ -1,0 +1,6 @@
+Build a production-grade FastAPI authentication service with Supabase Auth that strictly adheres to the following:
+1. Return 400 with a custom JSON payload {"error": "Email and password are required"} on missing or empty string fields instead of FastAPI's default 422 Unprocessable Entity.
+2. In the Bearer token dependency, use HTTPBearer(auto_error=False) and handle missing/malformed headers explicitly by returning 401 with {"error": "Access token required"} and {"error": "Invalid or expired token"}.
+3. Implement a second protected route GET /protected/dashboard using the exact same dependency to verify guard reusability.
+4. Support role-based authorization: add GET /protected/admin returning 403 Forbidden with {"error": "Forbidden: Admin privileges required"} for non-admin authenticated users.
+5. Include token refresh via POST /auth/refresh accepting {"refresh_token": "..."} and in-memory rate limiting returning 429 Too Many Requests after 5 failed login attempts.

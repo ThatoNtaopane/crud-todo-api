@@ -1,0 +1,14 @@
+Build a complete, secure REST API using Python and FastAPI that integrates with Supabase Auth as the Identity Provider.
+
+Requirements:
+1. Endpoints:
+   - POST /auth/signup: JSON body with email & password. Validate input (return 400 on empty/missing). Call Supabase sign_up. Return 201 on success.
+   - POST /auth/login: JSON body with email & password. Validate input (400). Call Supabase sign_in_with_password. Return 401 on invalid credentials. Return 200 with access token and refresh token on success.
+   - POST /auth/logout: Protected route requiring Bearer token. Call Supabase sign_out. Return 204 No Content.
+   - GET /public/info: Public route returning 200 with {"message": "Welcome stranger! This info is public."}.
+   - GET /protected/profile: Protected route. Extract and verify Bearer token with Supabase get_user. Return 401 with {"error": "Invalid or expired token"} on failure, or 200 with id, email, and created_at on success.
+2. Architecture:
+   - Implement token verification using a reusable FastAPI dependency (middleware guard).
+   - Configure HTTPBearer security scheme so Swagger UI displays the Authorize lock button at /docs.
+   - Load SUPABASE_URL and SUPABASE_KEY from environment variables (.env).
+   - Do not store or hash passwords in code; Supabase handles all cryptography.

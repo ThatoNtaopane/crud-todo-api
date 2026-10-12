@@ -184,3 +184,36 @@ FastAPI automatically provisions interactive Swagger UI at `/docs`. With `HTTPBe
 2. Click **Authorize** at the top right.
 3. Paste your JWT access token from `/auth/login`.
 4. Click **Authorize**, then test any locked endpoint (`/protected/profile`, `/protected/dashboard`).
+
+
+---
+
+## 7. Stage 7: The AI Rematch ("AI vs Me")
+
+In this stage, an AI model was prompted from memory to build the identical secured FastAPI + Supabase API. The generated code was quarantined in `ai-version/` and subjected to peer code review against our Stage 0–6 implementation.
+
+### 7.1. The Memory Prompt
+```text
+Build a complete, secure REST API using Python and FastAPI that integrates with Supabase Auth as the Identity Provider.
+Include POST /auth/signup (201), POST /auth/login (200), POST /auth/logout (204), GET /public/info (200), and GET /protected/profile (200/401).
+Validate all input (400), verify Bearer tokens with Supabase get_user, use reusable dependency guards, and configure Swagger UI HTTPBearer padlock.
+```
+
+### 7.2. Three Key Code Review Findings
+
+1. **Token Extraction and Malformed Header Handling**:
+   * *AI Version*: Used `HTTPBearer()` with default `auto_error=True`. When an `Authorization` header was missing, FastAPI raised its default internal exception returning `{"detail": "Not authenticated"}` rather than our required assignment-specified error `{ "error": "Access token required" }`.
+   * *Our Version*: Configured `HTTPBearer(auto_error=False)` with a custom authentication exception handler, properly extracting and sanitizing the Bearer prefix and returning the exact standardized `{ "error": ... }` JSON contract.
+
+2. **Security Flaws & Validation Behavior**:
+   * *AI Version*: Relied on Pydantic's default `EmailStr` and field validation, which triggers HTTP `422 Unprocessable Entity` rather than the required HTTP `400 Bad Request`. Furthermore, the AI code blindly trusted network calls without managing connection timeouts or distinguishing between network outages and invalid tokens.
+   * *Our Version*: Implemented custom `RequestValidationError` handling to return `400 Bad Request`. Provided safe error isolation so downstream database details or service secrets are never leaked to external clients.
+
+3. **Silent Decisions & Prompt Blindspots**:
+   * *What the prompt forgot*: The prompt did not specify the exact format of error JSON responses, how to handle token revocation upon logout, or rate-limiting against credential stuffing.
+   * *What the AI silently decided*: The AI silently chose async HTTP calls (`httpx.AsyncClient`) without connection pooling, returned `422` instead of `400`, and treated logout as a no-op returning `None` rather than invalidating the active session.
+
+### 7.3. The Rematch Iteration
+We refined our prompt with strict constraints (specifying `400 Bad Request` overrides, `HTTPBearer(auto_error=False)`, `403 Forbidden` admin authorization, and login rate limiting). The regenerated code (`ai-version/main_v2.py`) resolved the validation contract and added role verification.
+
+> **Engineering Takeaway**: *An AI's output is only as good as your technical specification — and you can only effectively judge and audit it because you built the architecture by hand first.*
