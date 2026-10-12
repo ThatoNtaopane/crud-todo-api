@@ -38,7 +38,6 @@ def init_db():
                 updated_at TEXT DEFAULT (datetime('now'))
             );
         """)
-        # Verify row count before seeding to guarantee idempotency across restarts
         cursor.execute("SELECT COUNT(*) FROM tasks;")
         count = cursor.fetchone()[0]
         if count == 0:
@@ -71,7 +70,7 @@ DEFAULT_TASKS = [
     {"id": 3, "title": "Build CRUD API", "done": False},
 ]
 
-# In-memory tasks variable maintained during Stage 0 transition
+# In-memory tasks variable maintained during transition
 tasks = [dict(t) for t in DEFAULT_TASKS]
 
 class Task(BaseModel):
@@ -134,7 +133,7 @@ def health_check():
     response_model=List[Task],
     tags=["Tasks"],
     summary="List Tasks",
-    description="Retrieve seeded tasks from SQLite."
+    description="Retrieve tasks from SQLite database."
 )
 def list_tasks():
     with get_db() as conn:
@@ -147,13 +146,20 @@ def list_tasks():
     "/tasks/{task_id}",
     response_model=Task,
     tags=["Tasks"],
-    summary="Get Single Task by ID"
+    summary="Get Single Task by ID",
+    description="Retrieve a single task from SQLite using a parameterized query."
 )
 def get_task(task_id: int):
-    for task in tasks:
-        if task["id"] == task_id:
-            return task
-    return JSONResponse(status_code=404, content={"error": f"Task {task_id} not found"})
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, title, done FROM tasks WHERE id = ?;", (task_id,))
+        row = cursor.fetchone()
+        if not row:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"Task {task_id} not found", "detail": f"Task {task_id} not found"}
+            )
+        return {"id": row["id"], "title": row["title"], "done": bool(row["done"])}
 
 @app.post(
     "/tasks",
@@ -204,7 +210,8 @@ def delete_task(task_id: int):
 @app.get(
     "/stats",
     response_model=StatsResponse,
-    tags=["Analytics & Utilities"]
+    tags=["Analytics & Utilities"],
+    summary="Task Statistics"
 )
 def get_stats():
     total_count = len(tasks)
@@ -214,7 +221,8 @@ def get_stats():
 
 @app.post(
     "/reset",
-    tags=["Analytics & Utilities"]
+    tags=["Analytics & Utilities"],
+    summary="Reset Seed Tasks"
 )
 def reset_tasks():
     global tasks
