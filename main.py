@@ -1,13 +1,13 @@
 """FlyRank Internship · Backend Track · Week 2 · Assignment A4
 Auth · Login & protect
-Stage 3: Profile route token verification
+Stage 4: Auth middleware and logout endpoint
 """
 
 import os
 import logging
 from typing import Optional
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, Header
+from fastapi import FastAPI, Request, Header, Depends, Response
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel
@@ -28,6 +28,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
+class CustomAuthException(Exception):
+    def __init__(self, status_code: int, detail: str):
+        self.status_code = status_code
+        self.detail = detail
+
+@app.exception_handler(CustomAuthException)
+async def custom_auth_exception_handler(request: Request, exc: CustomAuthException):
+    return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
@@ -38,6 +47,26 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 class AuthCredentials(BaseModel):
     email: Optional[str] = None
     password: Optional[str] = None
+
+# Reusable authentication dependency (FastAPI guard)
+def get_current_user(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise CustomAuthException(status_code=401, detail="Access token required")
+
+    token = authorization.split("Bearer ", 1)[1].strip()
+    if not token:
+        raise CustomAuthException(status_code=401, detail="Access token required")
+
+    try:
+        user_res = supabase_client.auth.get_user(token)
+        user = user_res.user
+        if not user or not user.id:
+            raise CustomAuthException(status_code=401, detail="Invalid or expired token")
+        return {"id": user.id, "email": user.email, "created_at": user.created_at, "token": token}
+    except CustomAuthException:
+        raise
+    except Exception:
+        raise CustomAuthException(status_code=401, detail="Invalid or expired token")
 
 @app.on_event("startup")
 async def startup_event():
@@ -90,33 +119,40 @@ def login(creds: AuthCredentials):
     except Exception:
         return JSONResponse(status_code=401, content={"error": "Invalid login credentials"})
 
+# Protected logout endpoint
+@app.post("/auth/logout", status_code=204, tags=["Authentication"])
+def logout(current_user: dict = Depends(get_current_user)):
+    try:
+        supabase_client.auth.sign_out(current_user.get("token"))
+    except Exception:
+        pass
+    return Response(status_code=204)
+
 @app.get("/public/info", tags=["Public"])
 def public_info():
     return {"message": "Welcome stranger! This info is public."}
 
-# Stage 3: GET /protected/profile actually verifies token with Supabase
+# Protected profile endpoint using reusable middleware
 @app.get("/protected/profile", tags=["Protected"])
-def get_profile_verified(authorization: Optional[str] = Header(None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"error": "Access token required"})
-    
-    token = authorization.split("Bearer ", 1)[1].strip()
-    if not token:
-        return JSONResponse(status_code=401, content={"error": "Access token required"})
+def get_profile(current_user: dict = Depends(get_current_user)):
+    return {
+        "id": current_user["id"],
+        "email": current_user["email"],
+        "created_at": current_user["created_at"]
+    }
 
-    try:
-        user_res = supabase_client.auth.get_user(token)
-        user = user_res.user
-        if not user or not user.id:
-            return JSONResponse(status_code=401, content={"error": "Invalid or expired token"})
-        
-        return {
-            "id": user.id,
-            "email": user.email,
-            "created_at": user.created_at
+# Second protected route demonstrating middleware reuse
+@app.get("/protected/dashboard", tags=["Protected"])
+def get_dashboard(current_user: dict = Depends(get_current_user)):
+    return {
+        "message": f"Welcome to your private dashboard, {current_user['email']}!",
+        "user_id": current_user["id"],
+        "stats": {
+            "active_sessions": 1,
+            "role": "authenticated",
+            "access_level": "standard"
         }
-    except Exception:
-        return JSONResponse(status_code=401, content={"error": "Invalid or expired token"})
+    }
 
 if __name__ == "__main__":
     import uvicorn
