@@ -166,17 +166,21 @@ def get_task(task_id: int):
     response_model=Task,
     status_code=201,
     tags=["Tasks"],
-    summary="Create New Task"
+    summary="Create New Task",
+    description="Insert new task into SQLite database with parameterized SQL."
 )
 def create_task(task_data: TaskCreate):
-    next_id = max([t["id"] for t in tasks], default=0) + 1
-    new_task = {
-        "id": next_id,
-        "title": task_data.title,
-        "done": False
-    }
-    tasks.append(new_task)
-    return new_task
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO tasks (title, done) VALUES (?, 0);",
+            (task_data.title,)
+        )
+        conn.commit()
+        new_id = cursor.lastrowid
+        cursor.execute("SELECT id, title, done FROM tasks WHERE id = ?;", (new_id,))
+        row = cursor.fetchone()
+        return {"id": row["id"], "title": row["title"], "done": bool(row["done"])}
 
 @app.put(
     "/tasks/{task_id}",
