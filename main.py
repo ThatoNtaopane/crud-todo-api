@@ -1,5 +1,5 @@
 from typing import Optional, List
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Query
 from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, validator, root_validator
@@ -10,7 +10,8 @@ app = FastAPI(
     version="1.0.0",
     openapi_tags=[
         {"name": "System", "description": "API root discovery and health check endpoints"},
-        {"name": "Tasks", "description": "Core CRUD operations for managing task items"},
+        {"name": "Tasks", "description": "Core CRUD operations and querying for tasks"},
+        {"name": "Analytics & Utilities", "description": "Computed metrics and demo seed controls"},
     ]
 )
 
@@ -20,12 +21,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     msg = errors[0]["msg"] if errors else "Invalid request body"
     return JSONResponse(status_code=400, content={"error": f"Validation error: {msg}"})
 
-# In-memory "database" pre-filled with 3 example tasks
-tasks = [
+DEFAULT_TASKS = [
     {"id": 1, "title": "Buy groceries", "done": False},
     {"id": 2, "title": "Read FastAPI documentation", "done": True},
     {"id": 3, "title": "Build CRUD API", "done": False},
 ]
+
+# In-memory "database" initialized from seed
+tasks = [dict(t) for t in DEFAULT_TASKS]
 
 class Task(BaseModel):
     id: int = Field(..., description="Unique integer ID of the task", example=1)
@@ -57,6 +60,11 @@ class TaskUpdate(BaseModel):
             raise ValueError("Empty or invalid body: at least one field ('title' or 'done') must be provided")
         return values
 
+class StatsResponse(BaseModel):
+    total: int = Field(..., description="Total number of tasks", example=3)
+    done: int = Field(..., description="Number of completed tasks", example=1)
+    open: int = Field(..., description="Number of pending/open tasks", example=2)
+
 @app.get(
     "/",
     tags=["System"],
@@ -83,11 +91,31 @@ def health_check():
     "/tasks",
     response_model=List[Task],
     tags=["Tasks"],
-    summary="List All Tasks",
-    description="Retrieve the complete list of tasks currently stored in memory."
+    summary="List and Filter Tasks",
+    description="Retrieve tasks with optional filtering by completion status (done), substring search, and limit/offset pagination."
 )
-def list_tasks():
-    return tasks
+def list_tasks(
+    done: Optional[bool] = Query(None, description="Filter by completion status (true/false)"),
+    search: Optional[str] = Query(None, description="Search case-insensitive substring in task titles"),
+    limit: Optional[int] = Query(None, ge=1, description="Maximum number of items to return"),
+    offset: Optional[int] = Query(None, ge=0, description="Number of items to skip from beginning")
+):
+    results = tasks
+
+    if done is not None:
+        results = [t for t in results if t["done"] == done]
+
+    if search is not None:
+        q = search.strip().lower()
+        results = [t for t in results if q in t["title"].lower()]
+
+    if offset is not None:
+        results = results[offset:]
+
+    if limit is not None:
+        results = results[:limit]
+
+    return results
 
 @app.get(
     "/tasks/{task_id}",
@@ -150,6 +178,33 @@ def delete_task(task_id: int):
             tasks.pop(index)
             return Response(status_code=204)
     return JSONResponse(status_code=404, content={"error": f"Task {task_id} not found"})
+
+@app.get(
+    "/stats",
+    response_model=StatsResponse,
+    tags=["Analytics & Utilities"],
+    summary="Task Statistics",
+    description="Computes aggregate metrics for tasks in memory (total, done, open counts)."
+)
+def get_stats():
+    total_count = len(tasks)
+    done_count = sum(1 for t in tasks if t["done"])
+    open_count = total_count - done_count
+    return {"total": total_count, "done": done_count, "open": open_count}
+
+@app.post(
+    "/reset",
+    tags=["Analytics & Utilities"],
+    summary="Reset Seed Tasks",
+    description="Restores the in-memory tasks list back to the initial 3 example tasks."
+)
+def reset_tasks():
+    global tasks
+    tasks = [dict(t) for t in DEFAULT_TASKS]
+    return {
+        "message": "Tasks successfully reset to initial seed data",
+        "tasks": tasks
+    }
 
 if __name__ == "__main__":
     import uvicorn
