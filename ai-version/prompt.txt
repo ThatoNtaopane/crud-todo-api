@@ -1,14 +1,15 @@
-Migrate our existing FastAPI task CRUD API from using an in-memory Python list to a persistent SQLite database using Python's built-in sqlite3 standard library.
+Containerize our existing FastAPI task CRUD API to run against PostgreSQL using Docker and Docker Compose.
 
 Requirements:
-1. Database file: Name it tasks.db in the root project folder. It must be created automatically if missing.
-2. Schema: A single table named 'tasks' with columns: id (INTEGER PRIMARY KEY AUTOINCREMENT), title (TEXT NOT NULL), and done (INTEGER DEFAULT 0).
-3. Initial Data: Seed three default tasks ("Buy groceries", "Read FastAPI documentation", "Build CRUD API") only when the database is completely empty. Do not duplicate them on server restarts.
-4. Endpoints: Keep the five CRUD endpoints intact with identical paths and request/response contracts:
-   - GET /tasks (list all tasks)
-   - GET /tasks/{task_id} (fetch one task by ID)
-   - POST /tasks (create new task, return 201)
-   - PUT /tasks/{task_id} (update title and/or done status, return 200)
-   - DELETE /tasks/{task_id} (delete task, return 204 No Content)
-5. Safety: All SQL queries MUST use parameterized queries (?) to prevent SQL injection vulnerabilities. Never interpolate user input into SQL strings.
-6. Validation & Error Handling: Maintain 400 Bad Request for invalid/empty request bodies, and 404 Not Found for non-existent IDs. Error responses must include JSON error messages.
+1. Language & Driver: Python 3.10+, FastAPI, and psycopg (v3).
+2. Database Schema: Auto-create 'tasks' table with columns: id (SERIAL PRIMARY KEY), title (TEXT NOT NULL), done (BOOLEAN DEFAULT FALSE), and timestamps. Seed the 3 default tasks only if the table is empty.
+3. Endpoints: Keep identical contracts and status codes:
+   - GET /tasks (supports done, search, pagination)
+   - GET /tasks/{id} (404 if not found)
+   - POST /tasks (201 on success, 400 on empty/missing title)
+   - PUT /tasks/{id} (200 on success, 400 on empty body, 404 if not found)
+   - DELETE /tasks/{id} (204 on success, 404 if not found)
+   - GET /health (checks database connectivity)
+4. Parameterized Queries: All queries MUST use %s placeholders. Never interpolate user input into SQL.
+5. Secrets Management: Read database connection string from DATABASE_URL in .env (never hardcode credentials). Commit .env.example.
+6. Docker Compose: Orchestrate 'api' and 'db' services in compose.yaml with a persistent volume so data survives container restarts. One command (docker compose up) must launch the whole stack.

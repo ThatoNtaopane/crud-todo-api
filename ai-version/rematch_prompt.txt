@@ -1,18 +1,9 @@
-Migrate our existing FastAPI task CRUD API from an in-memory list to SQLite with strict production engineering standards:
+Hardened Containerization Prompt for Rematch:
 
-1. Architecture & Connection Management:
-   - Database file: tasks.db in root.
-   - Use a helper function get_db() returning sqlite3.connect(..., check_same_thread=False) with conn.row_factory = sqlite3.Row.
-   - Use Python context managers (with get_db() as conn:) for all database queries and automated transaction management.
-2. Schema & Performance:
-   - Table: tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))).
-   - Create indexes on tasks(done) and tasks(title) for optimized query performance.
-3. Idempotent Initialization:
-   - Initialize schema on FastAPI startup event.
-   - Check if table is empty before seeding the 3 initial tasks inside an atomic transaction.
-4. Error Handling & Contract Preservation:
-   - Preserve custom error response schema: return JSON {"error": "..."} on all 400 Bad Request and 404 Not Found responses.
-   - Implement custom RequestValidationError handler returning 400 with {"error": ...}.
-   - Return 204 No Content with an empty body on successful deletion.
-5. Parameterized Queries:
-   - All SQL statements must strictly use ? placeholders.
+Please containerize the FastAPI task CRUD API with strict adherence to enterprise safety:
+1. Architecture: Separate database logic cleanly into repository.py; keep main.py routes focused strictly on HTTP serialization and status code mapping.
+2. Connection Resilience: Wrap startup database connections in an exponential retry backoff loop (5 retries) to accommodate container networking initialization.
+3. Query Safety: Every SQL query (including DELETE and UPDATE path parameters) MUST use parameterized placeholders (%s). String interpolation is strictly forbidden.
+4. Error Handling: Maintain standard error envelope {"error": "..."} for 400 and 404 responses.
+5. Secrets: Never hardcode passwords anywhere in Python or Compose files; load DATABASE_URL dynamically from environment variables configured in .env.
+6. Docker Optimization: Use a lightweight base image (python:3.11-slim) and multi-stage builds.
