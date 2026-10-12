@@ -7,12 +7,12 @@ from pydantic import BaseModel, Field, validator, root_validator
 
 app = FastAPI(
     title="Task Management API",
-    description="A SQLite-backed CRUD API for managing to-do tasks, built with FastAPI and SQLite3.",
+    description="A SQLite-backed CRUD API for managing to-do tasks, built with FastAPI, SQLite3, and parameterized SQL queries.",
     version="2.0.0",
     openapi_tags=[
         {"name": "System", "description": "API root discovery and health check endpoints"},
-        {"name": "Tasks", "description": "Core CRUD operations and querying for tasks"},
-        {"name": "Analytics & Utilities", "description": "Computed metrics and demo seed controls"},
+        {"name": "Tasks", "description": "Core CRUD operations and SQL-powered querying for tasks"},
+        {"name": "Analytics & Utilities", "description": "Computed metrics and database reset controls"},
     ]
 )
 
@@ -26,9 +26,10 @@ def get_db():
     return conn
 
 def init_db():
-    """Create tasks table if missing and seed initial tasks inside an atomic transaction."""
+    """Create tasks table and indexes if missing, and seed initial tasks inside an atomic transaction."""
     with get_db() as conn:
         cursor = conn.cursor()
+        # Schema definition with primary key, typed columns, and audit timestamps
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,6 +39,11 @@ def init_db():
                 updated_at TEXT DEFAULT (datetime('now'))
             );
         """)
+        # Indexes for fast lookup on filtered and searched columns
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_done ON tasks(done);")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_title ON tasks(title);")
+        
+        # Idempotent seeding: count rows first, insert only if table is empty
         cursor.execute("SELECT COUNT(*) FROM tasks;")
         count = cursor.fetchone()[0]
         if count == 0:
@@ -63,6 +69,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     errors = exc.errors()
     msg = errors[0]["msg"] if errors else "Invalid request body"
     return JSONResponse(status_code=400, content={"error": f"Validation error: {msg}"})
+
+DEFAULT_TASKS = [
+    {"id": 1, "title": "Buy groceries", "done": False},
+    {"id": 2, "title": "Read FastAPI documentation", "done": True},
+    {"id": 3, "title": "Build CRUD API", "done": False},
+]
 
 class Task(BaseModel):
     id: int = Field(..., description="Unique integer ID of the task", example=1)
@@ -102,7 +114,8 @@ class StatsResponse(BaseModel):
 @app.get(
     "/",
     tags=["System"],
-    summary="API Root Information"
+    summary="API Root Information",
+    description="Returns API service information, version number, and main endpoint locations."
 )
 def get_root():
     return {
@@ -114,7 +127,8 @@ def get_root():
 @app.get(
     "/health",
     tags=["System"],
-    summary="Service Health Check"
+    summary="Service Health Check",
+    description="Returns operational health status of the API server."
 )
 def health_check():
     return {"status": "ok"}
@@ -123,13 +137,50 @@ def health_check():
     "/tasks",
     response_model=List[Task],
     tags=["Tasks"],
-    summary="List Tasks",
-    description="Retrieve tasks from SQLite database."
+    summary="List and Filter Tasks",
+    description="Retrieve tasks from SQLite with optional filtering by status (done), substring search (LIKE), sorting, and database limit/offset pagination."
 )
-def list_tasks():
+def list_tasks(
+    done: Optional[bool] = Query(None, description="Filter by completion status (true/false)"),
+    search: Optional[str] = Query(None, description="Search case-insensitive substring in task titles using SQL LIKE"),
+    sort: Optional[str] = Query(None, description="Sort field ('title' or 'id')"),
+    order: Optional[str] = Query("asc", description="Sort order ('asc' or 'desc')"),
+    limit: Optional[int] = Query(None, ge=1, description="Maximum number of items to return"),
+    offset: Optional[int] = Query(None, ge=0, description="Number of items to skip from beginning")
+):
+    query = "SELECT id, title, done FROM tasks"
+    conditions = []
+    params = []
+
+    if done is not None:
+        conditions.append("done = ?")
+        params.append(1 if done else 0)
+
+    if search is not None:
+        conditions.append("title LIKE ?")
+        params.append(f"%{search.strip()}%")
+
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+
+    # Sorting
+    sort_col = "title" if sort == "title" else "id"
+    sort_dir = "DESC" if order and order.lower() == "desc" else "ASC"
+    query += f" ORDER BY {sort_col} {sort_dir}"
+
+    if limit is not None:
+        query += " LIMIT ?"
+        params.append(limit)
+        if offset is not None:
+            query += " OFFSET ?"
+            params.append(offset)
+    elif offset is not None:
+        query += " LIMIT -1 OFFSET ?"
+        params.append(offset)
+
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, title, done FROM tasks ORDER BY id ASC;")
+        cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
         return [{"id": r["id"], "title": r["title"], "done": bool(r["done"])} for r in rows]
 
@@ -228,7 +279,8 @@ def delete_task(task_id: int):
     "/stats",
     response_model=StatsResponse,
     tags=["Analytics & Utilities"],
-    summary="Task Statistics"
+    summary="Task Statistics",
+    description="Computes aggregate metrics directly in SQLite using SELECT COUNT(*) and WHERE clauses."
 )
 def get_stats():
     with get_db() as conn:
@@ -243,12 +295,14 @@ def get_stats():
 @app.post(
     "/reset",
     tags=["Analytics & Utilities"],
-    summary="Reset Seed Tasks"
+    summary="Reset Seed Tasks",
+    description="Atomically resets the SQLite tasks table back to initial 3 seed items."
 )
 def reset_tasks():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM tasks;")
+        cursor.execute("DELETE FROM sqlite_sequence WHERE name='tasks';")
         cursor.executemany(
             "INSERT INTO tasks (id, title, done) VALUES (?, ?, ?);",
             [
