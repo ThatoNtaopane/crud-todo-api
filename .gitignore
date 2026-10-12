@@ -1,15 +1,32 @@
+# Python artifacts
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
 .pytest_cache/
-.env
+.coverage
+htmlcov/
+
+# Virtual Environments
 venv/
 env/
-.DS_Store
-*.swp
-sample_curl.txt
+.venv/
+ENV/
+
+# Secrets and environment configs (NEVER commit database credentials!)
+.env
+.env.local
+.env.*.local
+
+# Database files & local persistence
 tasks.db
 tasks.db-journal
 tasks.db-wal
 tasks.db-shm
+
+# Docker & local temp files
+*.swp
+*.swo
+.DS_Store
+node_modules/
+sample_curl.txt
