@@ -7,7 +7,8 @@ search, filtering, pagination, and utilities.
 
 import sqlite3
 from fastapi.testclient import TestClient
-from main import app, reset_tasks, DEFAULT_TASKS, get_db
+from main import app, reset_tasks, DEFAULT_TASKS
+from repository import get_task
 
 client = TestClient(app)
 
@@ -28,7 +29,8 @@ def test_health_endpoint():
     setup_function()
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    assert resp.json()["status"] == "ok"
+    assert resp.json().get("db") == "ok"
 
 def test_get_all_tasks():
     setup_function()
@@ -199,21 +201,17 @@ def test_docs_and_openapi():
     assert resp_spec.status_code == 200
     assert "openapi" in resp_spec.json()
 
-def test_sqlite_persistence_across_reconnect():
-    """Verify data outlives process/connections in tasks.db."""
+def test_database_persistence_across_reconnect():
+    """Verify data persists in the database across connections."""
     setup_function()
-    # 1. Add persistent item
-    client.post("/tasks", json={"title": "Persistent Database Item"})
+    # 1. Add persistent item via API
+    resp = client.post("/tasks", json={"title": "Persistent Database Item"})
+    new_id = resp.json()["id"]
     
-    # 2. Query directly via fresh SQLite connection
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT title FROM tasks WHERE title = ?;", ("Persistent Database Item",))
-    row = cursor.fetchone()
-    conn.close()
-    
-    assert row is not None
-    assert row["title"] == "Persistent Database Item"
+    # 2. Query directly via repository get_task
+    task = get_task(new_id)
+    assert task is not None
+    assert task["title"] == "Persistent Database Item"
 
 def test_sql_injection_safety():
     """Verify parameterized queries prevent SQL injection."""
@@ -226,7 +224,7 @@ def test_sql_injection_safety():
     assert len(resp.json()) == 0
 
 if __name__ == "__main__":
-    print("Running automated test suite for SQLite CRUD API...")
+    print("Running automated test suite for Containerized PostgreSQL CRUD API...")
     test_root_endpoint()
     test_health_endpoint()
     test_get_all_tasks()
@@ -249,6 +247,6 @@ if __name__ == "__main__":
     test_stats()
     test_reset()
     test_docs_and_openapi()
-    test_sqlite_persistence_across_reconnect()
+    test_database_persistence_across_reconnect()
     test_sql_injection_safety()
     print("All 24 test cases passed successfully!")
