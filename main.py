@@ -1,7 +1,8 @@
+from typing import Optional
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, root_validator
 
 app = FastAPI()
 
@@ -26,6 +27,22 @@ class TaskCreate(BaseModel):
         if not v or not v.strip():
             raise ValueError("Title is required and cannot be empty")
         return v.strip()
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    done: Optional[bool] = None
+
+    @validator("title")
+    def validate_title(cls, v):
+        if v is not None and not v.strip():
+            raise ValueError("Title cannot be empty")
+        return v.strip() if v is not None else v
+
+    @root_validator
+    def check_non_empty(cls, values):
+        if values.get("title") is None and values.get("done") is None:
+            raise ValueError("Empty or invalid body: at least one field ('title' or 'done') must be provided")
+        return values
 
 @app.get("/")
 def get_root():
@@ -60,6 +77,25 @@ def create_task(task_data: TaskCreate):
     }
     tasks.append(new_task)
     return new_task
+
+@app.put("/tasks/{task_id}")
+def update_task(task_id: int, task_data: TaskUpdate):
+    for task in tasks:
+        if task["id"] == task_id:
+            if task_data.title is not None:
+                task["title"] = task_data.title
+            if task_data.done is not None:
+                task["done"] = task_data.done
+            return task
+    return JSONResponse(status_code=404, content={"error": f"Task {task_id} not found"})
+
+@app.delete("/tasks/{task_id}", status_code=204)
+def delete_task(task_id: int):
+    for index, task in enumerate(tasks):
+        if task["id"] == task_id:
+            tasks.pop(index)
+            return Response(status_code=204)
+    return JSONResponse(status_code=404, content={"error": f"Task {task_id} not found"})
 
 if __name__ == "__main__":
     import uvicorn
