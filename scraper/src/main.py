@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
 FlyRank Internship · Backend Track · Week 5 · Assignment A9
-The Polite Scraper — Stage 2: Discover Three Catalogue Pages
+The Polite Scraper — Stage 3: Extract the Raw Records
 """
 
 import os
+import re
+import json
 import time
+from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
@@ -20,6 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CACHE_DIR = BASE_DIR / "cache"
 CANONICAL_BASE_URL = "https://books.toscrape.com"
 FETCH_BASE_URL = os.environ.get("SCRAPER_BASE_URL", CANONICAL_BASE_URL).rstrip("/")
+RATING_WORDS = {"One", "Two", "Three", "Four", "Five"}
 
 
 class FetchError(Exception):
@@ -32,6 +36,12 @@ def to_fetch_url(canonical_url: str) -> str:
     if FETCH_BASE_URL != CANONICAL_BASE_URL and canonical_url.startswith(CANONICAL_BASE_URL):
         return FETCH_BASE_URL + canonical_url[len(CANONICAL_BASE_URL):]
     return canonical_url
+
+
+def book_cache_path(book_url: str) -> Path:
+    parts = [p for p in urlparse(book_url).path.split("/") if p and p != "index.html"]
+    slug = parts[-1] if parts else "unknown-book"
+    return CACHE_DIR / "books" / f"{slug}.html"
 
 
 def fetch_page(canonical_url: str, cache_path: Path, is_first_network_request: list[bool]) -> tuple[str, bool]:
@@ -56,44 +66,51 @@ def fetch_page(canonical_url: str, cache_path: Path, is_first_network_request: l
     return raw_bytes.decode("utf-8"), False
 
 
-def discover_catalogue_pages(max_pages: int = MAX_CATALOGUE_PAGES) -> tuple[int, int, list[tuple[str, str]]]:
+def extract_raw_record(html_text: str, product_url: str, source_page: str, fetched_at: str) -> dict:
     """
-    Follow pagination up to max_pages and return:
-    (catalogue_pages_count, total_discovered_count, deduplicated_list_of_(book_url, source_page))
+    Extract the 8 raw fields scoped strictly to article.product_page.
+    Store None when description is absent.
     """
-    current_url = f"{CANONICAL_BASE_URL}/catalogue/page-1.html"
-    is_first_req = [True]
-    pages_visited = 0
-    discovered_all: list[tuple[str, str]] = []
+    soup = BeautifulSoup(html_text, "html.parser")
+    product_article = soup.select_one("article.product_page")
+    if product_article is None:
+        raise ValueError(f"Missing article.product_page in {product_url}")
 
-    while current_url and pages_visited < max_pages:
-        pages_visited += 1
-        cache_path = CACHE_DIR / f"catalogue-page-{pages_visited}.html"
-        html_text, _ = fetch_page(current_url, cache_path, is_first_req)
-        soup = BeautifulSoup(html_text, "html.parser")
+    product_main = product_article.select_one("div.product_main")
+    if product_main is None:
+        raise ValueError(f"Missing div.product_main in {product_url}")
 
-        for link in soup.select("article.product_pod h3 a"):
-            href = link.get("href", "").strip()
-            if href:
-                abs_url = urljoin(current_url, href)
-                discovered_all.append((abs_url, current_url))
+    title_el = product_main.select_one("h1")
+    price_el = product_main.select_one("p.price_color")
+    avail_el = product_main.select_one("p.availability")
+    rating_el = product_main.select_one("p.star-rating")
 
-        next_el = soup.select_one("li.next a")
-        if next_el and next_el.get("href") and pages_visited < max_pages:
-            current_url = urljoin(current_url, next_el["href"].strip())
-        else:
-            current_url = ""
+    title = re.sub(r"\s+", " ", title_el.get_text(strip=True)) if title_el else ""
+    price_text = price_el.get_text(strip=True) if price_el else ""
+    availability_text = re.sub(r"\s+", " ", avail_el.get_text(strip=True)) if avail_el else ""
 
-    unique_pairs: list[tuple[str, str]] = []
-    seen: set[str] = set()
-    for book_url, source_page in discovered_all:
-        if book_url not in seen:
-            seen.add(book_url)
-            unique_pairs.append((book_url, source_page))
+    rating_text = ""
+    if rating_el:
+        classes = rating_el.get("class", [])
+        for cls in classes:
+            if cls in RATING_WORDS:
+                rating_text = cls
+                break
 
-    print(f"catalogue_pages={pages_visited}, discovered={len(discovered_all)}, unique_urls={len(unique_pairs)}")
-    return pages_visited, len(discovered_all), unique_pairs
+    desc_el = product_article.select_one("#product_description + p")
+    description = None
+    if desc_el is not None:
+        cleaned_desc = re.sub(r"\s+", " ", desc_el.get_text(strip=True))
+        if cleaned_desc:
+            description = cleaned_desc
 
-
-if __name__ == "__main__":
-    discover_catalogue_pages()
+    return {
+        "title": title,
+        "product_url": product_url,
+        "price_text": price_text,
+        "availability_text": availability_text,
+        "rating_text": rating_text,
+        "description": description,
+        "source_page": source_page,
+        "fetched_at": fetched_at,
+    }
