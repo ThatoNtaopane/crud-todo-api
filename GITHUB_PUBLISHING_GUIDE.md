@@ -1,125 +1,67 @@
-# Step-by-Step Instructions: Publishing Week 4 (Assignment A3) to GitHub
+# GitHub Publishing & Integration Guide: Week 5 · Assignment A9 (The Polite Scraper)
 
-Your repository has been completely updated and verified for **FlyRank Internship · Backend Track · Week 1 · Assignment A3: Containerize your stack**.
+This repository contains the complete, verified solution for **FlyRank Internship · Backend Track · Week 5 · Assignment A9: The polite scraper** (Python Lane).
 
-This complete update includes:
-- **PostgreSQL in Docker**: Fully containerized Postgres 15 database service with named volume persistence (`taskdata`).
-- **One-Command Orchestration**: Production `compose.yaml` and `Dockerfile` starting the entire stack with `docker compose up --build`.
-- **Environment Secrets Management**: Strict `.env` workflow (`.env.example` committed, `.env` git-ignored).
-- **Safe Parameterized CRUD**: All 5 CRUD endpoints implemented in `repository.py` using `%s` placeholders and `psycopg` (v3).
-- **Automated Health Probes**: Real `/health` check executing `SELECT 1` against PostgreSQL.
-- **Stretch Goals & Extras**: Multi-stage Dockerfile optimization (`Dockerfile.multistage`), indexing benchmark with `EXPLAIN ANALYZE`, and the mortality experiment demonstration.
-- **Stage 6 AI Rematch**: Complete quarantined `ai-version/` directory with prompt, code, diff patch, and rematch analysis.
-- **Verified Commit Progression**: 8 sequential, honest stage commits (`Stage 0` through `Stage 6` + `Extras`).
+All stages (`Stage 0` through `Stage 6`, plus `Extras` and `Bonus: AI vs me`) are committed with a clean, verifiable Git history on top of your `crud-todo-api` repository.
 
 ---
 
-## Method 1: Using the Pre-Packaged Archive from Google Drive (Recommended)
+## Option 1: Pushing `crud-todo-api-scraper.zip` to Your Existing GitHub Repo (`crud-todo-api`)
 
-The entire repository with its full Git history has been archived into `crud-todo-api-docker-postgres.zip` and uploaded to your Google Drive folder:
-**`Flyrank AI / FlyRank - Week 4 - Containerize your stack`**
+Because Stage 0 Step 1 specifies *"Create a `scraper/` folder in your internship repo, with a `README.md`, a `.gitignore`, and one entry file (`src/main.py`)"*, `crud-todo-api-scraper.zip` contains your full `crud-todo-api` repository with the new `scraper/` folder and 8 sequential Week 5 commits added cleanly to `main`.
 
-### Step 1: Download and Extract
-1. Open Google Drive and navigate to `FlyRank - Week 4 - Containerize your stack`.
-2. Download `crud-todo-api-docker-postgres.zip`.
-3. Unzip the archive into your local development workspace:
+```bash
+# 1. Unzip the archive into a local folder
+unzip crud-todo-api-scraper.zip -d crud-todo-api-w5
+cd crud-todo-api-w5
+
+# 2. Verify the commit history (shows all Week 5 stage commits + earlier weeks)
+git log --oneline -n 12
+
+# 3. Point to your GitHub remote and push
+git remote set-url origin https://github.com/ThatoNtaopane/crud-todo-api.git || git remote add origin https://github.com/ThatoNtaopane/crud-todo-api.git
+git branch -M main
+git push -u origin main
+```
+
+---
+
+## Option 2: Pushing `polite-scraper-python.zip` as a Standalone Branch or Repository
+
+If you prefer a standalone branch or dedicated repository containing only the scraper files at the root:
+
+```bash
+unzip polite-scraper-python.zip -d polite-scraper
+cd polite-scraper
+git log --oneline
+```
+
+---
+
+## Verification Checklist (Under 1 Minute)
+
+1. **Commit History (`git log --oneline -n 9`)**:
+   - `Bonus: AI vs me (the AI code stays isolated)`
+   - `Extras: CSV export, change detection, HTML dashboard, selector fixtures, and exponential backoff`
+   - `Stage 6: publish scraper evidence`
+   - `Stage 5: survive failures, report the run`
+   - `Stage 4: validate normalized records`
+   - `Stage 3: extract book details`
+   - `Stage 2: discover three catalogue pages`
+   - `Stage 1: fetch and cache HTML`
+   - `Stage 0: classify scraping target`
+
+2. **Cache Exclusion Check**:
+   Verify `cache/` is ignored and never committed to Git:
    ```bash
-   unzip crud-todo-api-docker-postgres.zip -d crud-todo-api-a3
-   cd crud-todo-api-a3
+   git status --ignored
+   git log --all --full-history -- "scraper/cache/*"
+   # Returns empty output!
    ```
 
-### Step 2: Verify Git History
-Verify that all stage commits are present:
-```bash
-git log --oneline -n 15
-```
-You will see the complete commit chain from Assignment A1, Assignment A2, and Assignment A3:
-- `Stage 6: AI vs me`
-- `Extras: database health check, indexes, and multi-stage Dockerfile`
-- `Stage 5: one-command stack + docs`
-- `Stage 4: docker-compose the whole stack`
-- `Stage 3: full CRUD on Postgres`
-- `Stage 2: read from Postgres`
-- `Stage 1: connect via .env and create table`
-- `Stage 0: Postgres in Docker + gitignore`
-
-### Step 3: Push to Your Public GitHub Repository
-Link your remote repository and push:
-```bash
-# Verify or update your remote URL
-git remote set-url origin https://github.com/ThatoNtaopane/crud-todo-api.git
-
-# Push the updated main branch to GitHub
-git push origin main
-```
-*(If prompted or if GitHub has remote commits, run `git pull --rebase origin main` before pushing).*
-
----
-
-## Method 2: Testing and Running Locally with One Command
-
-### 1. Start the Complete Stack
-From the project root:
-```bash
-cp .env.example .env
-docker compose up --build
-```
-Docker Compose will:
-1. Build the lightweight Python 3.11 FastAPI image.
-2. Pull and start `postgres:15-alpine`.
-3. Run the health check (`pg_isready -U postgres -d tasks`).
-4. Launch the API once the database is healthy.
-5. Auto-create the `tasks` table and seed the initial 3 tasks.
-
-### 2. Verify Endpoints via curl
-In a new terminal window:
-```bash
-# Check service and database health
-curl -i http://localhost:3000/health
-
-# List tasks (returns 3 seeded tasks)
-curl -i http://localhost:3000/tasks
-
-# Create a new task
-curl -i -X POST http://localhost:3000/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"title": "Verify containerized stack"}'
-```
-
-### 3. Verify Persistence Across Teardown
-```bash
-# Tear down containers and network
-docker compose down
-
-# Start up again
-docker compose up -d
-
-# Verify previously created task is still there!
-curl -i http://localhost:3000/tasks
-```
-
-### 4. Run the Automated Test Suite
-```bash
-python3 test_api.py
-```
-Expected output:
-```text
-Running automated test suite for Containerized PostgreSQL CRUD API...
-All 24 test cases passed successfully!
-```
-
----
-
-## Submission Checklist
-
-- [x] PostgreSQL runs in an isolated container; whole stack starts with `docker compose up`.
-- [x] Application connects using `DATABASE_URL` from `.env` (`.env` git-ignored, `.env.example` committed).
-- [x] `tasks` table created automatically with SERIAL primary key and audit timestamps.
-- [x] 3 example tasks seeded only on first run (seed-once rule verified).
-- [x] All 5 CRUD endpoints working against Postgres using parameterized queries (`%s`).
-- [x] Proper HTTP status codes: `200`, `201`, `204`, `400` (invalid body), `404` (unknown ID) with JSON error messages.
-- [x] Data persistence proven across full `docker compose down` and `docker compose up` via named volume `taskdata`.
-- [x] `README.md` updated with one-command run, `.env.example`, endpoint table, `curl -i` logs, and database screenshot (`docs/postgres-tasks-psql.png`).
-- [x] Automated test suite with 24 passing test cases.
-- [x] Clean Git commit history with >= 6 honest stage commits.
-- [x] Bonus Stage 6 completed with AI quarantine directory (`ai-version/`) and README diff review.
+3. **Run the Scraper & Unit Tests**:
+   ```bash
+   cd scraper
+   python3 src/main.py
+   python3 tests/test_scraper.py
+   ```
