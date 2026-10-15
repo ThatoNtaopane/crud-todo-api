@@ -1,0 +1,4 @@
+Build a polite Python 3.10+ web scraper using requests, BeautifulSoup, and Pydantic targeting https://books.toscrape.com.
+Crawl the first 3 catalogue pages (page-1.html to page-3.html), resolve relative book links to absolute URLs, and visit all 60 book detail pages.
+Send User-Agent 'FlyRankInternship-A9/1.0 (+https://github.com/ThatoNtaopane/crud-todo-api)', use a 10-second timeout, wait 500 ms between network requests, and cache HTML files under cache/.
+Extract 8 raw fields (title, product_url, price_text, availability_text, rating_text, description, source_page, fetched_at), normalise price_text into float price_gbp, validate with Pydantic (description optional), deduplicate by product_url, write valid records to output/books.json, invalid records to output/errors.json, and a run summary to output/run-report.json. Ensure one broken book URL does not crash the run.

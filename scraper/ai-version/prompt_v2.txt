@@ -1,0 +1,6 @@
+Build a polite Python 3.10+ web scraper using requests, BeautifulSoup, and Pydantic targeting https://books.toscrape.com.
+1. Crawl strictly the first 3 catalogue pages (page-1.html, page-2.html, page-3.html) following `li.next a` and resolve relative URLs via `urllib.parse.urljoin`.
+2. Send User-Agent 'FlyRankInternship-A9/1.0 (+https://github.com/ThatoNtaopane/crud-todo-api)', timeout=10s, and sleep 500 ms ONLY on real network requests (0 ms delay on cache hits).
+3. Scope detail page extraction strictly to `article.product_page` (`div.product_main` for `h1`, `p.price_color`, `p.availability`, `p.star-rating`, and `#product_description + p` for `description`). If `#product_description + p` is missing, set `description = None` (never fall back to generic `<p>` tags).
+4. Validate records with Pydantic (`price_gbp: float > 0`, URLs starting with `https://`, `rating_text` in One..Five). Deduplicate by canonical `product_url`.
+5. Retry only transient timeouts or 5xx/429 errors once; NEVER retry HTTP 404 or 403 responses. Write `output/books.json`, `output/errors.json`, and `output/run-report.json`.
