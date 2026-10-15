@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>The Polite Scraper — Observability Dashboard</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 2rem auto; max-width: 1100px; color: #1e293b; background: #f8fafc; padding: 0 1rem; }
+    h1 { color: #0f172a; margin-bottom: 0.25rem; }
+    .subtitle { color: #475569; margin-bottom: 1.5rem; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .card-label { font-size: 0.85rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
+    .card-value { font-size: 1.6rem; font-weight: 700; color: #0f172a; margin-top: 0.25rem; }
+    table { width: 100%; border-collapse: collapse; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+    th, td { padding: 0.65rem 0.85rem; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+    th { background: #f1f5f9; font-weight: 600; color: #334155; }
+  </style>
+</head>
+<body>
+  <h1>The Polite Scraper — Run Observability Dashboard</h1>
+  <p class="subtitle">Last fresh run: <strong>2026-10-15T12:45:55Z</strong> · Duration: <strong>0.554s</strong> · User-Agent: <code>FlyRankInternship-A9/1.0 (+https://github.com/ThatoNtaopane/crud-todo-api)</code></p>
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Validated Records</div>
+      <div class="card-value">60</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Price Range (GBP)</div>
+      <div class="card-value">£12.84 – £57.31</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Mean Price (GBP)</div>
+      <div class="card-value">£35.00</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Cache Hits / Fetched</div>
+      <div class="card-value">63 / 0</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Failed Pages / Errors</div>
+      <div class="card-value">1 / 0</div>
+    </div>
+  </div>
+  <h2>Sample Validated Records (First 15 of 60)</h2>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Title</th><th>Price (GBP)</th><th>Rating</th><th>Availability</th><th>Description Preview</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td><a href='https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html'>A Light in the Attic</a></td><td>£51.77</td><td>Three</td><td>In stock (22 available)</td><td>It's hard to imagine a world without A Light in the Attic. This now-classic coll...</td></tr><tr><td>2</td><td><a href='https://books.toscrape.com/catalogue/tipping-the-velvet_999/index.html'>Tipping the Velvet</a></td><td>£53.74</td><td>One</td><td>In stock (20 available)</td><td>"Erotic and absorbing...Written with starling power."--"The New York Times Book ...</td></tr><tr><td>3</td><td><a href='https://books.toscrape.com/catalogue/soumission_998/index.html'>Soumission</a></td><td>£50.10</td><td>One</td><td>In stock (20 available)</td><td>Dans une France assez proche de la nôtre, un homme s'engage dans la carrière uni...</td></tr><tr><td>4</td><td><a href='https://books.toscrape.com/catalogue/sharp-objects_997/index.html'>Sharp Objects</a></td><td>£47.82</td><td>Four</td><td>In stock (20 available)</td><td>WICKED above her hipbone, GIRL across her heart Words are like a road map to rep...</td></tr><tr><td>5</td><td><a href='https://books.toscrape.com/catalogue/sapiens-a-brief-history-of-humankind_996/index.html'>Sapiens: A Brief History of Humankind</a></td><td>£54.23</td><td>Five</td><td>In stock (20 available)</td><td>From a renowned historian comes a groundbreaking narrative of humanity's creatio...</td></tr><tr><td>6</td><td><a href='https://books.toscrape.com/catalogue/the-requiem-red_995/index.html'>The Requiem Red</a></td><td>£22.65</td><td>One</td><td>In stock (19 available)</td><td>Patient Twenty-nine.A monster roams the halls of Soothing Hills Asylum. Three gi...</td></tr><tr><td>7</td><td><a href='https://books.toscrape.com/catalogue/the-dirty-little-secrets-of-getting-your-dream-job_994/index.html'>The Dirty Little Secrets of Getting Your Dream Job</a></td><td>£33.34</td><td>Four</td><td>In stock (19 available)</td><td>Drawing on his extensive experience evaluating applicants for his marketing agen...</td></tr><tr><td>8</td><td><a href='https://books.toscrape.com/catalogue/the-coming-woman-a-novel-based-on-the-life-of-the-infamous-feminist-victoria-woodhull_993/index.html'>The Coming Woman: A Novel Based on the Life of the Infamous Feminist, Victoria Woodhull</a></td><td>£17.93</td><td>Three</td><td>In stock (19 available)</td><td>A novel based on the life of the infamous feminist, Victoria Woodhull, tracing h...</td></tr><tr><td>9</td><td><a href='https://books.toscrape.com/catalogue/the-boys-in-the-boat-nine-americans-and-their-epic-quest-for-gold-at-the-1936-berlin-olympics_992/index.html'>The Boys in the Boat: Nine Americans and Their Epic Quest for Gold at the 1936 Berlin Olympics</a></td><td>£22.60</td><td>Four</td><td>In stock (19 available)</td><td>For readers of Laura Hillenbrand's Seabiscuit and Unbroken, the dramatic story o...</td></tr><tr><td>10</td><td><a href='https://books.toscrape.com/catalogue/the-black-maria_991/index.html'>The Black Maria</a></td><td>£52.15</td><td>One</td><td>In stock (19 available)</td><td>Praise for Aracelis Girmay's The Black Maria: Pushcart Prize winner Aracelis Gir...</td></tr><tr><td>11</td><td><a href='https://books.toscrape.com/catalogue/starving-hearts-triangular-trade-trilogy-1_990/index.html'>Starving Hearts (Triangular Trade Trilogy, #1)</a></td><td>£13.99</td><td>Two</td><td>In stock (19 available)</td><td>Since her assault, Miss Annette Chetwynd has been plagued by nightmares and worr...</td></tr><tr><td>12</td><td><a href='https://books.toscrape.com/catalogue/shakespeares-sonnets_989/index.html'>Shakespeare&#x27;s Sonnets</a></td><td>£20.66</td><td>Four</td><td>In stock (19 available)</td><td>This book is an important and complete collection of the Sonnets of William Shak...</td></tr><tr><td>13</td><td><a href='https://books.toscrape.com/catalogue/set-me-free_988/index.html'>Set Me Free</a></td><td>£17.46</td><td>Five</td><td>In stock (19 available)</td><td>Aaron Ledbetter's future had been planned out for him since before he was born. ...</td></tr><tr><td>14</td><td><a href='https://books.toscrape.com/catalogue/scott-pilgrims-precious-little-life-scott-pilgrim-1_987/index.html'>Scott Pilgrim&#x27;s Precious Little Life (Scott Pilgrim #1)</a></td><td>£52.29</td><td>Five</td><td>In stock (19 available)</td><td>Scott Pilgrim's life is totally sweet. He's 23 years old, he's in a rockband, he...</td></tr><tr><td>15</td><td><a href='https://books.toscrape.com/catalogue/rip-it-up-and-start-again_986/index.html'>Rip it Up and Start Again</a></td><td>£35.02</td><td>Five</td><td>In stock (19 available)</td><td>Punk's raw power rejuvenated rock, but by the summer of 1977 the movement had be...</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>

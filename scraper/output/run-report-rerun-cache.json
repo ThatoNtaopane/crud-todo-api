@@ -1,0 +1,28 @@
+{
+  "start_time": "2026-10-15T12:45:55Z",
+  "end_time": "2026-10-15T12:45:55Z",
+  "duration_seconds": 0.554,
+  "user_agent": "FlyRankInternship-A9/1.0 (+https://github.com/ThatoNtaopane/crud-todo-api)",
+  "catalogue_pages": 3,
+  "discovered_urls": 60,
+  "unique_urls": 60,
+  "pages_fetched": 0,
+  "cache_hits": 63,
+  "valid_records": 60,
+  "invalid_records": 0,
+  "failed_pages": 1,
+  "failed_urls": [
+    {
+      "url": "https://books.toscrape.com/catalogue/broken-book-page-404_000/index.html",
+      "status_code": 404,
+      "attempts": 1,
+      "reason": "HTTP 404 for https://books.toscrape.com/catalogue/broken-book-page-404_000/index.html (non-retryable client status)"
+    }
+  ],
+  "change_detection": {
+    "new": 0,
+    "changed": 0,
+    "unchanged": 60,
+    "gone": 0
+  }
+}
