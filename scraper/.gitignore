@@ -1,0 +1,14 @@
+# Cached HTML pages (never commit scraped HTML cache)
+cache/
+
+# Python bytecode and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.pytest_cache/
+
+# Environment variables
+.env
